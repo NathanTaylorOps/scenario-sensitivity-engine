@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: scenario-sensitivity-engine
+    runtime: static
+    buildCommand: npm ci && npm run build:web
+    staticPublishPath: dist/web

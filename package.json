@@ -1,0 +1,23 @@
+{
+  "name": "scenario-sensitivity-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A Monte Carlo scenario/sensitivity modeling tool for GM/COO-level business decisions.",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "demo": "node scripts/demo.ts",
+    "build:web": "node scripts/build-web.mjs",
+    "test:web": "node scripts/test-web.mjs",
+    "verify": "npm run typecheck && npm test && npm run build:web && npm run test:web"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.10.0",
+    "playwright": "^1.56.0"
+  }
+}
