@@ -17,7 +17,12 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const distWeb = path.join(root, "dist", "web");
 
 console.log("Type-checking and compiling src/web (tsc -p tsconfig.web.json)...");
-execFileSync("npx", ["tsc", "-p", "tsconfig.web.json"], { cwd: root, stdio: "inherit" });
+const tscPath = path.join(root, "node_modules", "typescript", "bin", "tsc");
+
+execFileSync(process.execPath, [tscPath, "-p", "tsconfig.web.json"], {
+  cwd: root,
+  stdio: "inherit",
+});
 
 mkdirSync(distWeb, { recursive: true });
 copyFileSync(path.join(root, "web", "index.html"), path.join(distWeb, "index.html"));
