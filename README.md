@@ -1,8 +1,8 @@
 # Scenario Sensitivity Engine
 
-<!-- Replace YOUR-GITHUB-USERNAME once this repo is pushed to GitHub, so the
+<!-- Replace NathanTaylorOps once this repo is pushed to GitHub, so the
      CI badge points at the real workflow run. -->
-[![CI](https://github.com/YOUR-GITHUB-USERNAME/scenario-sensitivity-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR-GITHUB-USERNAME/scenario-sensitivity-engine/actions/workflows/ci.yml)
+[![CI](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A Monte Carlo scenario and sensitivity modeling tool for GM/COO-level
