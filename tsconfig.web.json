@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "skipLibCheck": true,
+    "outDir": "dist/web/js",
+    "rootDir": "src"
+  },
+  "include": ["src/engine/**/*.ts", "src/personas/**/*.ts", "src/web/**/*.ts"]
+}

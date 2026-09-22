@@ -1,0 +1,614 @@
+/* Scenario Sensitivity Engine — UI styles.
+   Palette and mark specs follow the dataviz skill's validated reference
+   instance: fixed categorical order, status colors reserved for verdicts,
+   text always in ink tokens (never series color), thin marks with rounded
+   data-ends, a surface gap between adjacent bars. */
+
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --page-plane: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --series-1: #2a78d6;
+  --series-1-track: #e1e0d9;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-good-bg: #e8f7e8;
+  --status-warning-bg: #fff6e2;
+  --status-critical-bg: #fceaea;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page-plane: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --series-1-track: #2c2c2a;
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #e66767;
+    --status-good-bg: #142514;
+    --status-warning-bg: #2b2413;
+    --status-critical-bg: #2c1717;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --page-plane: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --gridline: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --series-1: #3987e5;
+  --series-1-track: #2c2c2a;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #e66767;
+  --status-good-bg: #142514;
+  --status-warning-bg: #2b2413;
+  --status-critical-bg: #2c1717;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page-plane);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+.app-header {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 16px;
+}
+
+.app-header-inner {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.app-title {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  font-weight: 650;
+}
+
+.app-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.app-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  /* Caught in review: without this, a two-column row stretches the shorter
+     panel (the range chart) to match the taller one (the tornado chart),
+     leaving dead whitespace under the shorter chart. Same bug pattern as
+     .audience-grid below, fixed the same way. */
+  align-items: start;
+}
+
+@media (min-width: 720px) {
+  .panel-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.panel-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.panel-subtitle {
+  margin: -6px 0 16px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.panel-subtitle-lead {
+  margin: 0 0 14px;
+}
+
+/* Visual grouping between the persona-level "portfolio" content (comparison
+   table, affordability) and the decision-level "deep dive" content (verdict,
+   charts, audience views, financing) — a light tint + heading band so the
+   page reads as two clearly distinct zones, not one long undifferentiated
+   scroll of panels. */
+.section-band {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 20px 4px;
+}
+
+.section-band-decision {
+  background: transparent;
+  border: none;
+  padding: 4px 0 0;
+}
+
+.section-band-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.section-band-subtitle {
+  margin: -10px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.section-band > .panel,
+.section-band > .panel-grid {
+  margin-bottom: 4px;
+}
+
+.audience-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (min-width: 720px) {
+  .audience-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.audience-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--page-plane);
+}
+
+.audience-card-title {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.panel-row {
+  display: flex;
+  gap: 20px;
+  /* Caught in review: flex-end bottom-aligned every field in the row, so a
+     field whose control block is shorter than its sibling (the Persona
+     select next to the Decision tabs, which can wrap to two lines) floated
+     with visible empty space above it. flex-start keeps every field's label
+     lined up at the top regardless of how tall its control ends up. */
+  align-items: flex-start;
+}
+
+.panel-row-wrap {
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.select,
+.input {
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--page-plane);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-width: 160px;
+}
+
+.input {
+  min-width: 120px;
+}
+
+.financing-inputs {
+  margin-bottom: 16px;
+}
+
+.decision-description {
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  font: inherit;
+  cursor: pointer;
+  background: var(--page-plane);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.88rem;
+}
+
+.tab-active {
+  background: var(--series-1);
+  color: #ffffff;
+  border-color: var(--series-1);
+}
+
+/* Verdict badge — status color reserved for state, always paired with an icon + label, never color alone */
+.verdict-badge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.verdict-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.verdict-label {
+  font-weight: 650;
+  font-size: 1.05rem;
+}
+
+.verdict-rationale {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  margin-top: 2px;
+}
+
+.status-good {
+  background: var(--status-good-bg);
+  color: var(--status-good);
+}
+
+.status-good .verdict-rationale,
+.status-warning .verdict-rationale,
+.status-critical .verdict-rationale {
+  color: var(--text-secondary);
+}
+
+.status-warning {
+  background: var(--status-warning-bg);
+  color: #9a6a00;
+}
+
+:root[data-theme="dark"] .status-warning {
+  color: var(--status-warning);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .status-warning {
+    color: var(--status-warning);
+  }
+}
+
+.status-critical {
+  background: var(--status-critical-bg);
+  color: var(--status-critical);
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+/* Ties the headline "Probability NPV > 0" tile's color to the verdict badge
+   above it, so a reader scanning tiles alone still gets the same status
+   signal as the badge — not decorative color, the same status palette used
+   everywhere else (icon + label still carry the verdict itself). */
+.stat-value-status-good {
+  color: var(--status-good);
+}
+
+.stat-value-status-warning {
+  color: #9a6a00;
+}
+
+:root[data-theme="dark"] .stat-value-status-warning {
+  color: var(--status-warning);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .stat-value-status-warning {
+    color: var(--status-warning);
+  }
+}
+
+.stat-value-status-critical {
+  color: var(--status-critical);
+}
+
+.stat-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.chart-wrap {
+  width: 100%;
+}
+
+.variance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.variance-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.variance-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.variance-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--series-1-track);
+  overflow: hidden;
+}
+
+.variance-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--series-1);
+}
+
+.audience-content {
+  margin-top: 4px;
+}
+
+.audience-text {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.audience-muted {
+  color: var(--text-secondary);
+}
+
+.assumption-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  /* The CFO view is deliberately the most detailed of the three audience cards,
+     but a full assumption line per driver can run long — capped and scrollable
+     so it doesn't force the Executor/Lender cards' whitespace to match it. */
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.assumption-list li {
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.assumption-heading {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.assumption-detail {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.financing-result p,
+.affordability-result p {
+  margin: 0 0 6px;
+}
+
+.financing-error {
+  color: var(--status-critical);
+  font-weight: 600;
+  white-space: pre-line;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--gridline);
+  /* Scroll the table horizontally on a narrow viewport (.table-wrap already sets
+     overflow-x: auto) rather than squeezing columns until cell content wraps —
+     a wrapped pill's rounded background doesn't cover its second line, which
+     reads as the verdict text being cut off ("Marginal" -> "Margin"). */
+  white-space: nowrap;
+}
+
+.data-table th.num,
+.data-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-footer {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px 32px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.app-footer code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---- Inline SVG chart tokens (used by src/web/charts.ts) ---- */
+
+.viz-label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+}
+
+.viz-value {
+  fill: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.viz-value-muted {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.viz-track {
+  fill: var(--series-1-track);
+}
+
+.viz-bar-series-1 {
+  fill: var(--series-1);
+}
+
+.viz-zero-line {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+
+.viz-range-line {
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.viz-dot-muted {
+  fill: var(--surface-1);
+  stroke: var(--baseline);
+  stroke-width: 2;
+}
+
+.viz-dot-series-1 {
+  fill: var(--series-1);
+  stroke: var(--surface-1);
+  stroke-width: 2;
+}
+
+/* Collapsed table view under each chart — accessibility fallback so the
+   underlying numbers are readable by a screen reader or on a printed page,
+   not just visible as a bar's length. */
+.viz-table-fallback {
+  margin-top: 10px;
+}
+
+.viz-table-fallback summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.viz-table-fallback table {
+  margin-top: 8px;
+}

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scenario Sensitivity Engine</title>
+<meta name="description" content="Monte Carlo business-decision modeling — probabilistic NPV, tornado sensitivity, and audience-specific views, reported as ranges (P90/P50/P10), not false-precision point estimates." />
+
+<!-- Open Graph / Twitter card. Uses a page-relative image path so it resolves
+     correctly under whatever domain this ends up deployed at (e.g. Render). -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Scenario Sensitivity Engine" />
+<meta property="og:description" content="Monte Carlo business-decision modeling — probabilistic NPV, tornado sensitivity, and audience-specific views, reported as ranges (P90/P50/P10), not false-precision point estimates." />
+<meta property="og:image" content="og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Scenario Sensitivity Engine" />
+<meta name="twitter:description" content="Monte Carlo business-decision modeling — probabilistic, not a single-point forecast." />
+<meta name="twitter:image" content="og-image.png" />
+
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body class="viz-root">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <h1 class="app-title">Scenario Sensitivity Engine</h1>
+      <p class="app-subtitle">Monte Carlo business-decision modeling — probabilistic, not a single-point forecast.</p>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="panel">
+      <p class="panel-subtitle panel-subtitle-lead">Pick who's deciding and what they're deciding on — every section below, including the portfolio view, updates for this pairing.</p>
+      <div class="panel-row panel-row-wrap">
+        <div class="field">
+          <label class="field-label" for="persona-select">Persona</label>
+          <select id="persona-select" class="select"></select>
+        </div>
+        <div class="field field-grow">
+          <label class="field-label">Decision</label>
+          <div id="decision-tabs" class="tabs"></div>
+        </div>
+      </div>
+      <p id="decision-description" class="decision-description"></p>
+    </section>
+
+    <div class="section-band">
+      <h2 class="section-band-title">Portfolio view — across all of this persona's decisions</h2>
+      <p class="section-band-subtitle">The two questions a GM or COO asks before a single decision's detail matters: which of these are worth doing, and can we afford to do them together?</p>
+
+      <section class="panel">
+        <h3 class="panel-title">Decision comparison</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Decision</th>
+                <th class="num">Median NPV</th>
+                <th class="num">P(NPV &gt; 0)</th>
+                <th>Verdict</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3 class="panel-title">Portfolio affordability</h3>
+        <div class="field">
+          <label class="field-label" for="affordability-capital">Available capital ($)</label>
+          <input id="affordability-capital" class="input" type="number" min="0" step="1000" value="400000" />
+        </div>
+        <div id="affordability-result" class="affordability-result"></div>
+      </section>
+    </div>
+
+    <div class="section-band section-band-decision">
+      <h2 class="section-band-title">This decision, in depth — <span id="section-band-decision-label"></span></h2>
+      <p class="section-band-subtitle">The full simulation behind the one row above: the range of outcomes, what drives it, and how it reads to three different people.</p>
+
+      <section class="panel">
+        <div id="verdict-badge" class="verdict-badge"></div>
+        <div id="stat-tiles" class="stat-tiles"></div>
+      </section>
+
+      <section class="panel-grid">
+        <div class="panel">
+          <h3 class="panel-title">NPV range (P90 – P50 – P10)</h3>
+          <p class="panel-subtitle">P90 = conservative case (90% chance of doing at least this well), P50 = median, P10 = optimistic case (only a 10% chance of doing this well). Read left-to-right as worst-to-best, not low-to-high confidence.</p>
+          <div id="range-chart" class="chart-wrap"></div>
+        </div>
+        <div class="panel">
+          <h3 class="panel-title">Tornado sensitivity</h3>
+          <div id="tornado-chart" class="chart-wrap"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3 class="panel-title">Variance contribution (top drivers)</h3>
+        <div id="variance-list" class="variance-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3 class="panel-title">The same result, three audiences</h3>
+        <p class="panel-subtitle">One simulated outcome, read three different ways — nothing here is hidden behind a click.</p>
+        <div class="audience-grid">
+          <div class="audience-card">
+            <h4 class="audience-card-title">Decision-Executor</h4>
+            <div id="audience-executor" class="audience-content"></div>
+          </div>
+          <div class="audience-card">
+            <h4 class="audience-card-title">CFO</h4>
+            <div id="audience-cfo" class="audience-content"></div>
+          </div>
+          <div class="audience-card">
+            <h4 class="audience-card-title">Lender / Investor</h4>
+            <div id="audience-lender" class="audience-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="financing-section" class="panel">
+        <h3 class="panel-title">Debt financing &amp; covenant check</h3>
+        <div class="panel-row panel-row-wrap financing-inputs">
+          <div class="field">
+            <label class="field-label" for="ltv-input">Loan-to-value (%)</label>
+            <input id="ltv-input" class="input" type="number" min="0" max="100" step="1" value="70" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="rate-input">Annual interest rate (%)</label>
+            <input id="rate-input" class="input" type="number" min="0" max="30" step="0.1" value="8.5" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="term-input">Term (years)</label>
+            <input id="term-input" class="input" type="number" min="1" max="30" step="1" value="7" />
+          </div>
+        </div>
+        <div id="financing-result" class="financing-result"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <p>All figures are simulated outputs of a Monte Carlo model, not real financial results. See the repository's <code>docs/METHODOLOGY.md</code> for assumptions and sourcing.</p>
+  </footer>
+
+  <script type="module" src="js/web/main.js"></script>
+</body>
+</html>
