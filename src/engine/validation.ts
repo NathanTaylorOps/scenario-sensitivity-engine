@@ -89,7 +89,11 @@ function validateDriverSanity(driverId: string, unit: string, category: string, 
   return problems;
 }
 
-function distributionRange(dist: Distribution): { low: number; high: number } | null {
+/** Exported so src/engine/guardrails.ts's soft "this looks unusual compared to
+ * the sourced default" check reuses the exact same range logic as this
+ * module's hard validation, rather than a second copy that could drift out
+ * of sync with it. */
+export function distributionRange(dist: Distribution): { low: number; high: number } | null {
   switch (dist.kind) {
     case "constant":
       return { low: dist.value, high: dist.value };

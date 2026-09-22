@@ -534,6 +534,163 @@ body {
   white-space: nowrap;
 }
 
+/* ---- Scenario save/load/export/import ---- */
+
+.scenario-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.scenario-select-row {
+  margin-top: 16px;
+}
+
+.scenario-import-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---- Assumption editor ---- */
+
+.editor-toggle-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: var(--series-1);
+  color: #ffffff;
+  border: 1px solid var(--series-1);
+}
+
+.btn-secondary {
+  background: var(--page-plane);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Caught in review: a class selector's `display` beats the browser's default
+   `[hidden] { display: none }` rule on specificity, so `.editor-panel`'s own
+   `display: flex` was silently defeating the `hidden` attribute and showing
+   the editor open by default. This attribute-qualified selector is more
+   specific than the plain class rule above, so `hidden` wins again. */
+.editor-panel[hidden] {
+  display: none;
+}
+
+.editor-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-row + .editor-row {
+  margin-top: 2px;
+}
+
+.editor-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.editor-row-label {
+  font-weight: 650;
+}
+
+.editor-row-unit {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.editor-plain-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.editor-plain-fields .field {
+  min-width: 120px;
+}
+
+.editor-advanced {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.editor-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.editor-advanced .select {
+  margin-top: 8px;
+}
+
+.editor-rationale {
+  width: 100%;
+  min-height: 44px;
+  resize: vertical;
+  font: inherit;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.editor-messages {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+}
+
+.editor-messages ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.editor-errors {
+  background: var(--status-critical-bg);
+  color: var(--status-critical);
+}
+
+.editor-warnings-box {
+  background: var(--status-warning-bg);
+  color: #9a6a00;
+}
+
+:root[data-theme="dark"] .editor-warnings-box {
+  color: var(--status-warning);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .editor-warnings-box {
+    color: var(--status-warning);
+  }
+}
+
 .app-footer {
   max-width: 960px;
   margin: 0 auto;

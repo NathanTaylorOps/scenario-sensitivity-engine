@@ -130,6 +130,144 @@ async function main() {
     assert.ok(!text.includes("Invalid loan terms"), `valid inputs still show a validation error: "${text}"`);
   });
 
+  console.log("Checking the assumption editor (Phase 1 driver customization)...");
+  await page.selectOption("#persona-select", { index: 0 });
+  await page.waitForTimeout(400);
+
+  await check("the editor panel is hidden by default, before it's ever opened (regression: a CSS specificity bug once made it show open on page load)", async () => {
+    const visible = await page.isVisible("#editor-panel");
+    assert.equal(visible, false, "the editor panel should not be visible until 'Edit assumptions' is clicked");
+  });
+
+  await page.click("#edit-assumptions-btn");
+  await page.waitForTimeout(200);
+  await check("the editor opens with one row per driver plus the discount rate", async () => {
+    const rowCount = await page.$$eval(".editor-row", (els) => els.length);
+    assert.ok(rowCount > 1, `expected multiple editor rows, got ${rowCount}`);
+  });
+
+  async function findRowByLabel(label) {
+    const rows = await page.$$(".editor-row");
+    for (const row of rows) {
+      const text = await row.$eval(".editor-row-label", (el) => el.textContent ?? "");
+      if (text.includes(label)) return row;
+    }
+    return null;
+  }
+
+  const statBefore = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+
+  const capexRow = await findRowByLabel("capex");
+  const capexInputs = await capexRow.$$("input[type=number]");
+  await capexInputs[0].fill("10000");
+  await capexInputs[1].fill("15000");
+  await capexInputs[2].fill("20000");
+  await page.click("#editor-save-btn");
+  await page.waitForTimeout(300);
+
+  await check("editing a driver far outside its sourced range saves but shows a non-blocking guardrail warning", async () => {
+    const warningsVisible = await page.isVisible("#editor-warnings");
+    const errorsVisible = await page.isVisible("#editor-validation-errors");
+    assert.equal(errorsVisible, false, "a merely unusual (but internally valid) edit must not be hard-blocked");
+    assert.equal(warningsVisible, true, "a range with zero overlap with the sourced default should surface a guardrail warning");
+  });
+
+  await check("saving an edited assumption actually changes the computed result", async () => {
+    const statAfter = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.notEqual(statAfter, statBefore, "base-case NPV should change after editing capex");
+  });
+
+  await check("the reset-to-defaults button appears once an override is saved", async () => {
+    assert.equal(await page.isVisible("#reset-assumptions-btn"), true);
+  });
+
+  const statAfterEdit = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await check("a saved override persists across a page reload (localStorage)", async () => {
+    const statAfterReload = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.equal(statAfterReload, statAfterEdit);
+  });
+
+  await page.click("#edit-assumptions-btn");
+  await page.waitForTimeout(200);
+  const capexRow2 = await findRowByLabel("capex");
+  const capexInputs2 = await capexRow2.$$("input[type=number]");
+  await capexInputs2[0].fill("999999"); // pessimistic > optimistic: structurally invalid
+  await page.click("#editor-save-btn");
+  await page.waitForTimeout(300);
+  await check("an internally-invalid edit (pessimistic > optimistic) is hard-blocked by the engine's own validation, not just warned", async () => {
+    assert.equal(await page.isVisible("#editor-validation-errors"), true);
+  });
+
+  await page.click("#editor-cancel-btn");
+  await page.click("#reset-assumptions-btn");
+  await page.waitForTimeout(300);
+  await check("resetting to defaults restores the original built-in value", async () => {
+    const statAfterReset = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.equal(statAfterReset, statBefore);
+  });
+
+  console.log("Checking scenario save/export/import (Phase 1 portability)...");
+  await page.selectOption("#persona-select", { index: 0 });
+  await page.waitForTimeout(300);
+
+  await page.click("#edit-assumptions-btn");
+  await page.waitForTimeout(200);
+  const scenarioCapexRow = await findRowByLabel("capex");
+  const scenarioCapexInputs = await scenarioCapexRow.$$("input[type=number]");
+  await scenarioCapexInputs[1].fill("300000");
+  await page.click("#editor-save-btn");
+  await page.waitForTimeout(300);
+  const npvWithOverride = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+
+  await page.fill("#scenario-name-input", "Smoke test scenario");
+  await page.click("#scenario-save-btn");
+  await page.waitForTimeout(200);
+  await check("saving a scenario adds it to the saved-scenarios list", async () => {
+    const count = await page.$$eval("#scenario-select option", (els) => els.length);
+    assert.ok(count >= 1, "expected at least one saved scenario option");
+  });
+
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click("#scenario-export-btn")]);
+  const exportPath = "/tmp/sse-smoke-test-export.json";
+  await download.saveAs(exportPath);
+  const exportedJson = JSON.parse(await readFile(exportPath, "utf8"));
+  await check("an exported scenario file includes the active driver override", () => {
+    assert.ok(exportedJson.driverOverride, "expected the exported file to carry the edited capex assumption");
+  });
+
+  await page.click("#reset-assumptions-btn");
+  await page.waitForTimeout(200);
+  const decisionTabsAfterReset = await page.$$("#decision-tabs .tab");
+  if (decisionTabsAfterReset.length > 1) await decisionTabsAfterReset[1].click();
+  await page.waitForTimeout(300);
+
+  const importInput = await page.$("#scenario-import-input");
+  await importInput.setInputFiles(exportPath);
+  await page.waitForTimeout(400);
+
+  await check("importing an exported scenario reproduces the identical result (determinism)", async () => {
+    const npvAfterImport = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.equal(npvAfterImport, npvWithOverride, "importing the exported scenario should reproduce the exact same NPV as before it was exported");
+  });
+
+  await check("importing a scenario also switches back to the persona/decision it was saved from", async () => {
+    const activeTabText = (await page.textContent("#decision-tabs .tab-active"))?.trim();
+    assert.equal(activeTabText, "Buy a second CNC machine / production line");
+  });
+
+  await check("importScenarioFromJson rejects a malformed file without crashing the page", async () => {
+    const fs = await import("node:fs/promises");
+    const badPath = "/tmp/sse-smoke-test-bad-import.json";
+    await fs.writeFile(badPath, "{ not actually json");
+    const input = await page.$("#scenario-import-input");
+    await input.setInputFiles(badPath);
+    await page.waitForTimeout(300);
+    const msgVisible = await page.isVisible("#scenario-message");
+    assert.equal(msgVisible, true, "a bad import should surface a message, not fail silently");
+  });
+
   await check("no console or page errors were raised during any of the above", () => {
     assert.deepEqual(pageErrors, [], `unexpected console/page errors: ${JSON.stringify(pageErrors)}`);
   });

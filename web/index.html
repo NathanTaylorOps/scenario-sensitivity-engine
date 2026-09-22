@@ -43,6 +43,34 @@
       <p id="decision-description" class="decision-description"></p>
     </section>
 
+    <section class="panel">
+      <h3 class="panel-title">Save &amp; load scenarios</h3>
+      <p class="panel-subtitle">Saved on this device only. Export a scenario to a file to hand it to someone else — importing it reproduces the identical result, including any edited assumptions.</p>
+      <div class="panel-row panel-row-wrap">
+        <div class="field field-grow">
+          <label class="field-label" for="scenario-name-input">Name this scenario</label>
+          <input id="scenario-name-input" class="input" type="text" placeholder="e.g. Riverside job, conservative case" />
+        </div>
+      </div>
+      <div class="scenario-actions">
+        <button id="scenario-save-btn" class="btn btn-primary" type="button">Save current as scenario</button>
+        <button id="scenario-export-btn" class="btn btn-secondary" type="button">Export current to file</button>
+        <label class="btn btn-secondary scenario-import-label">
+          Import from file
+          <input id="scenario-import-input" type="file" accept="application/json" hidden />
+        </label>
+      </div>
+      <div id="scenario-message" class="editor-messages" hidden></div>
+      <div class="field scenario-select-row">
+        <label class="field-label" for="scenario-select">Saved scenarios (this device)</label>
+        <select id="scenario-select" class="select"></select>
+      </div>
+      <div class="scenario-actions">
+        <button id="scenario-load-btn" class="btn btn-secondary" type="button">Load selected</button>
+        <button id="scenario-delete-btn" class="btn btn-secondary" type="button">Delete selected</button>
+      </div>
+    </section>
+
     <div class="section-band">
       <h2 class="section-band-title">Portfolio view — across all of this persona's decisions</h2>
       <p class="section-band-subtitle">The two questions a GM or COO asks before a single decision's detail matters: which of these are worth doing, and can we afford to do them together?</p>
@@ -77,6 +105,23 @@
     <div class="section-band section-band-decision">
       <h2 class="section-band-title">This decision, in depth — <span id="section-band-decision-label"></span></h2>
       <p class="section-band-subtitle">The full simulation behind the one row above: the range of outcomes, what drives it, and how it reads to three different people.</p>
+
+      <div class="editor-toggle-row">
+        <button id="edit-assumptions-btn" class="btn btn-secondary" type="button">Edit assumptions</button>
+        <button id="reset-assumptions-btn" class="btn btn-secondary btn-reset" type="button" hidden>Reset to defaults</button>
+      </div>
+
+      <section id="editor-panel" class="panel editor-panel" hidden>
+        <h3 class="panel-title">Edit assumptions — <span id="editor-decision-label"></span></h3>
+        <p class="panel-subtitle">Changes save to this device only — they don't touch the built-in defaults, and you can reset them anytime. An edit far outside the originally sourced range is flagged below, not blocked, since a real business reason to move outside it is entirely possible.</p>
+        <div id="editor-body"></div>
+        <div id="editor-validation-errors" class="editor-messages editor-errors" hidden></div>
+        <div id="editor-warnings" class="editor-messages editor-warnings-box" hidden></div>
+        <div class="editor-actions">
+          <button id="editor-save-btn" class="btn btn-primary" type="button">Save changes</button>
+          <button id="editor-cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+      </section>
 
       <section class="panel">
         <div id="verdict-badge" class="verdict-badge"></div>

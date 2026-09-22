@@ -1,16 +1,17 @@
 # Scenario Sensitivity Engine
 
-<!-- Replace NathanTaylorOps once this repo is pushed to GitHub, so the
+<!-- Replace YOUR-GITHUB-USERNAME once this repo is pushed to GitHub, so the
      CI badge points at the real workflow run. -->
-[![CI](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml)
+[![CI](https://github.com/YOUR-GITHUB-USERNAME/scenario-sensitivity-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR-GITHUB-USERNAME/scenario-sensitivity-engine/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A Monte Carlo scenario and sensitivity modeling tool for GM/COO-level
 business decisions — breakeven, NPV, payback, and tornado-ranked sensitivity,
 reported as ranges (P90/P50/P10), not false-precision point estimates.
 
-**Live demo:** _not yet deployed — replace this line with the live URL once
-you've deployed via the [Render Blueprint](#deploy-it) below._
+**Live demo:** [scenario-sensitivity-engine.onrender.com](https://scenario-sensitivity-engine.onrender.com/)
+_(free-tier hosting — the first load after a period of inactivity can take
+30–50 seconds to wake up; every load after that is fast)._
 
 ![Screenshot of the Scenario Sensitivity Engine UI, showing a verdict badge, NPV range and tornado charts, and the three-audience comparison panel](docs/images/screenshot.png)
 
@@ -18,21 +19,24 @@ you've deployed via the [Render Blueprint](#deploy-it) below._
 > synthetic and illustrative only — no real business or financial data is
 > used or required.
 
-**Status: engine, validation, financing, a second persona, and an interactive
-UI are all built** — the engine is covered by a 92-test unit suite, and the
-UI by an automated smoke test that drives a real browser (both run in CI on
-every push) — extended well past the original scope across
-several rounds: tax/depreciation, goal-seek, verdict synthesis,
-representative-scenario extraction, cross-decision comparison, and
-portfolio-level correlation and affordability; then decision sequencing and a
-combined cash-flow calendar, named compound stress scenarios, a
-variance-contribution breakdown, ramp-up/commissioning delay modeling,
-audience-specific views, and typo protection on driver ids; then a persona
-validation layer, debt/interest financing with a DSCR covenant check, a
-second fully independent persona (mine-site heavy-equipment services), a
-documented AI-assisted/human-verified persona-authoring workflow, CI-enforced
-type-checking, and a dependency-free static browser UI (see below). See
-`docs/METHODOLOGY.md` for how the engine works.
+**Status: engine, validation, financing, a second persona, browser-side
+customization, and an interactive UI are all built and live** — the engine
+is covered by a 120-test unit suite, and the UI by an automated 25-check
+smoke test that drives a real browser (both run in CI on every push) —
+extended well past the original scope across several rounds:
+tax/depreciation, goal-seek, verdict synthesis, representative-scenario
+extraction, cross-decision comparison, and portfolio-level correlation and
+affordability; then decision sequencing and a combined cash-flow calendar,
+named compound stress scenarios, a variance-contribution breakdown,
+ramp-up/commissioning delay modeling, audience-specific views, and typo
+protection on driver ids; then a persona validation layer, debt/interest
+financing with a DSCR covenant check, a second fully independent persona
+(mine-site heavy-equipment services), a documented AI-assisted/human-verified
+persona-authoring workflow, CI-enforced type-checking, and a dependency-free
+static browser UI; most recently, a plain-language assumption editor with
+hard validation and soft guardrails, and save/load/export/import of named
+scenarios (see "Customize it" below). See `docs/METHODOLOGY.md` for how the
+engine works.
 
 ## Try it
 
@@ -74,6 +78,45 @@ comparison and portfolio-affordability panels. Charts are inline SVG built to
 the same validated, colorblind-safe palette and mark spec used throughout,
 with no charting library dependency.
 
+## Customize it
+
+Every driver's assumptions are editable in the browser — click **Edit
+assumptions** on any decision. Plain-language Pessimistic/Likely/Optimistic
+fields are the default entry point; an "Advanced" toggle underneath exposes
+the raw distribution shape (triangular, PERT, normal, lognormal, constant)
+for anyone who wants it. Two things stay true no matter how far an edit
+strays from the built-in defaults:
+
+- **Saving an invalid config is impossible, not just discouraged.** The
+  editor runs every edit through the exact same `validatePersona` check the
+  built-in personas themselves have to pass at load time — an inverted
+  min/max, a negative capex, a percentage entered as `26` instead of `0.26`,
+  is rejected outright, with the specific reason shown, before it ever
+  reaches the simulation.
+- **An edit far outside the originally sourced range is flagged, never
+  silently accepted or silently blocked.** A real business reason to move
+  outside a sourced range is entirely possible — the point is making sure
+  that's a deliberate choice, not a typo. See `src/engine/guardrails.ts`.
+
+Edited assumptions save to the browser's local storage — this device only,
+no account, no server. **Save & load scenarios** turns a persona + decision +
+its edited assumptions into a named, reloadable snapshot, and **Export
+current to file** writes it to a portable `.json` file that reproduces the
+identical result when imported anywhere else — the seeded, deterministic
+Monte Carlo engine guarantees the numbers match exactly, not approximately.
+That's the honest ceiling of what a dependency-free static site can offer as
+an audit trail: not multi-user, not automatic, but a real file someone can
+hand to a manager or business partner and get back the exact same numbers.
+
+A decision's underlying formula (its `cashFlows` function) isn't something
+the browser editor can author from scratch — that's not a corner cut, it's a
+stated scope line. What ships instead is `src/personas/templates.ts`: a
+small, fixed set of reviewed cash-flow archetypes (a capex/equipment
+purchase is the first one built out) that a new custom decision can be built
+from, with its own driver data on top. See `test/templates.test.ts` for the
+proof that the generalized capex template reproduces the built-in "second
+CNC machine" decision's own formula bit-for-bit, not approximately.
+
 ## Deploy it
 
 `render.yaml` is a [Render](https://render.com) Blueprint for exactly this:
@@ -92,19 +135,24 @@ npm run verify
 ```
 
 Runs, in order: `tsc --noEmit` against every `.ts` file including the UI
-layer; the 92-test engine suite (`node --test`); the browser build
-(`npm run build:web`), which type-checks `src/web/` a second time under its
-own browser-targeting `tsconfig.web.json` — a different module/lib context
-than the Node-targeting typecheck above, so this step exists specifically to
-catch a mismatch between the two (see "Caught in review" below); and an
-automated UI smoke test (`npm run test:web`) against the built page. All four
-steps are enforced in CI on every push/PR (`.github/workflows/ci.yml`).
+layer; the 120-test engine/storage/guardrail/template suite (`node --test`);
+the browser build (`npm run build:web`), which type-checks `src/web/` a
+second time under its own browser-targeting `tsconfig.web.json` — a
+different module/lib context than the Node-targeting typecheck above, so
+this step exists specifically to catch a mismatch between the two (see
+"Caught in review" below); and an automated UI smoke test (`npm run
+test:web`) — 25 checks against the actual built page, including opening the
+assumption editor, saving an edit outside the sourced range and confirming
+it's flagged not blocked, hard-rejecting a structurally invalid edit,
+persisting an override across a reload, and exporting/re-importing a
+scenario and confirming the result matches bit-for-bit. All four steps are
+enforced in CI on every push/PR (`.github/workflows/ci.yml`).
 
 **First-time setup for the UI smoke test:** it drives a real headless browser
 via [Playwright](https://playwright.dev), which needs its browser binary
 installed once: `npx playwright install chromium`.
 
-The 92 engine tests cover RNG determinism, statistical property tests on
+The 120 engine/storage/guardrail/template tests cover RNG determinism, statistical property tests on
 each distribution (not exact-value asserts — a stochastic engine's output is
 random by design), a regression test for a PERT edge case caught in review
 (see below), convergence testing, financial-math edge cases, the P90/P10
@@ -123,7 +171,11 @@ mistakes, duplicate driver ids all caught and named), debt amortization and
 DSCR correctness, loan-terms validation (see "Caught in review" below), and
 the second persona (proving the engine is genuinely persona-agnostic — every
 cross-decision and portfolio function runs against it with zero engine
-changes).
+changes); plus `test/storage.test.ts` (browser-storage round-trips, id
+namespacing, schema versioning, and graceful fallback when storage is
+unavailable or corrupted), `test/guardrails.test.ts` (the soft-warning
+comparison logic), and `test/templates.test.ts` (proving the capex decision
+template reproduces the built-in CNC decision's formula bit-for-bit).
 
 The UI smoke test is deliberately a floor, not a full UI test suite: it
 confirms the page's key sections render with no console errors, that
@@ -204,15 +256,20 @@ rather than a full Sobol decomposition).
   comparison/correlation/affordability, decision sequencing with a combined
   cash-flow calendar, named compound stress scenarios, variance-contribution
   analysis, audience-specific views, typo protection on driver ids, persona
-  validation, and debt financing/DSCR analysis. Zero UI dependencies, fully
-  unit-testable in isolation.
+  validation (`validation.ts`, hard-reject), soft guardrail warnings
+  (`guardrails.ts`, non-blocking), and debt financing/DSCR analysis. Zero UI
+  dependencies, fully unit-testable in isolation.
 - `src/personas/` — typed persona/scenario configs (named drivers, their
   distributions, and the decisions they expose) consumed by the shared
   engine above, registered in `src/personas/index.ts`. Swapping personas
-  swaps this config, not the engine code.
-- `src/web/` — the UI layer: `main.ts` (app orchestration and DOM wiring) and
-  `charts.ts` (inline SVG tornado/range charts). Imports the engine and
-  persona modules directly — no separate UI-facing API layer.
+  swaps this config, not the engine code. `templates.ts` holds the
+  decision-template library (fixed cash-flow archetypes a custom decision
+  can be built from) that the browser editor's "Advanced" flows use.
+- `src/web/` — the UI layer: `main.ts` (app orchestration and DOM wiring),
+  `charts.ts` (inline SVG tornado/range charts), and `storage.ts` (the only
+  module that touches `localStorage` — custom driver overrides and saved
+  scenarios). Imports the engine and persona modules directly — no separate
+  UI-facing API layer.
 - `web/` — the static `index.html`/`styles.css` the compiled UI loads;
   `scripts/build-web.mjs` compiles and assembles them into `dist/web/`.
   `scripts/test-web.mjs` is the automated Playwright smoke test that runs
@@ -281,6 +338,21 @@ built to catch since none of them break functionality:
   picker, with the single-decision deep dive below it under its own heading;
   no logic changed, since every element is still found by ID regardless of
   where it sits in the page.
+
+Building the assumption editor (the customization layer described above)
+turned up one more real bug, caught by actually looking at a screenshot
+rather than trusting that the code "should" work: the editor panel used the
+HTML `hidden` attribute to stay collapsed by default, but its own CSS class
+(`.editor-panel { display: flex; ... }`) has higher specificity than the
+browser's default `[hidden] { display: none }` rule — so the class silently
+won, and the editor rendered open on every page load regardless of the
+`hidden` attribute. The 24 browser-driven checks that already existed for
+the editor's *behavior* never caught it, because every one of them checked
+what happened after clicking "Edit assumptions," not what the page looked
+like before anyone touched it. Fixed with an explicit `.editor-panel[hidden]
+{ display: none; }` override, and a new smoke-test check added specifically
+to assert the panel is hidden before it's ever opened — the gap in test
+coverage was the actual bug here, not just the CSS.
 
 ## No backend, no bundler
 
