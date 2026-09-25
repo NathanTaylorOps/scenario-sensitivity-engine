@@ -23,6 +23,14 @@
   --status-good-bg: #e8f7e8;
   --status-warning-bg: #fff6e2;
   --status-critical-bg: #fceaea;
+  /* Text-safe variants of the status colors above: the vivid colors read
+     well as icons/chart marks but fall short of 4.5:1 against their own
+     light -bg pairing when used as text (verdict labels, stat values).
+     Dark mode's vivid colors already clear 4.5:1 against their dark -bg
+     pairing, so it reuses --status-* directly instead of needing these. */
+  --status-good-text: #077607;
+  --status-warning-text: #8a5c0a;
+  --status-critical-text: #b93030;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -124,10 +132,9 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
-  /* Caught in review: without this, a two-column row stretches the shorter
-     panel (the range chart) to match the taller one (the tornado chart),
-     leaving dead whitespace under the shorter chart. Same bug pattern as
-     .audience-grid below, fixed the same way. */
+  /* Without this, a two-column row stretches the shorter panel (the range
+     chart) to match the taller one (the tornado chart), leaving dead
+     whitespace under the shorter chart. Same fix as .audience-grid below. */
   align-items: start;
 }
 
@@ -218,17 +225,20 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--text-muted);
+  /* text-secondary, not text-muted: at this size and weight the title is
+     normal-size text by WCAG's large-text threshold, so it needs 4.5:1,
+     which text-muted falls short of against this card's background. */
+  color: var(--text-secondary);
 }
 
 .panel-row {
   display: flex;
   gap: 20px;
-  /* Caught in review: flex-end bottom-aligned every field in the row, so a
-     field whose control block is shorter than its sibling (the Persona
-     select next to the Decision tabs, which can wrap to two lines) floated
-     with visible empty space above it. flex-start keeps every field's label
-     lined up at the top regardless of how tall its control ends up. */
+  flex-wrap: wrap;
+  /* flex-start (not flex-end) keeps every field's label lined up at the top
+     regardless of how tall its control ends up — a field next to one whose
+     control wraps to two lines (the Persona select next to the Decision
+     tabs) would otherwise float with visible empty space above it. */
   align-items: flex-start;
 }
 
@@ -240,6 +250,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .field-grow {
@@ -262,6 +274,8 @@ body {
   border-radius: 6px;
   padding: 8px 10px;
   min-width: 160px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .input {
@@ -330,7 +344,17 @@ body {
 
 .status-good {
   background: var(--status-good-bg);
+  color: var(--status-good-text);
+}
+
+:root[data-theme="dark"] .status-good {
   color: var(--status-good);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .status-good {
+    color: var(--status-good);
+  }
 }
 
 .status-good .verdict-rationale,
@@ -341,7 +365,7 @@ body {
 
 .status-warning {
   background: var(--status-warning-bg);
-  color: #9a6a00;
+  color: var(--status-warning-text);
 }
 
 :root[data-theme="dark"] .status-warning {
@@ -356,7 +380,17 @@ body {
 
 .status-critical {
   background: var(--status-critical-bg);
+  color: var(--status-critical-text);
+}
+
+:root[data-theme="dark"] .status-critical {
   color: var(--status-critical);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .status-critical {
+    color: var(--status-critical);
+  }
 }
 
 .stat-tiles {
@@ -382,11 +416,21 @@ body {
    signal as the badge — not decorative color, the same status palette used
    everywhere else (icon + label still carry the verdict itself). */
 .stat-value-status-good {
+  color: var(--status-good-text);
+}
+
+:root[data-theme="dark"] .stat-value-status-good {
   color: var(--status-good);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .stat-value-status-good {
+    color: var(--status-good);
+  }
+}
+
 .stat-value-status-warning {
-  color: #9a6a00;
+  color: var(--status-warning-text);
 }
 
 :root[data-theme="dark"] .stat-value-status-warning {
@@ -400,7 +444,17 @@ body {
 }
 
 .stat-value-status-critical {
+  color: var(--status-critical-text);
+}
+
+:root[data-theme="dark"] .stat-value-status-critical {
   color: var(--status-critical);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .stat-value-status-critical {
+    color: var(--status-critical);
+  }
 }
 
 .stat-label {
@@ -558,11 +612,6 @@ body {
   margin-top: 16px;
 }
 
-.scenario-import-label {
-  display: inline-flex;
-  align-items: center;
-}
-
 /* ---- Assumption editor ---- */
 
 .editor-toggle-row {
@@ -597,11 +646,11 @@ body {
   gap: 16px;
 }
 
-/* Caught in review: a class selector's `display` beats the browser's default
+/* A class selector's `display` beats the browser's default
    `[hidden] { display: none }` rule on specificity, so `.editor-panel`'s own
-   `display: flex` was silently defeating the `hidden` attribute and showing
-   the editor open by default. This attribute-qualified selector is more
-   specific than the plain class rule above, so `hidden` wins again. */
+   `display: flex` would otherwise defeat the `hidden` attribute and show the
+   editor open by default. This attribute-qualified selector is more
+   specific than the plain class rule above, so `hidden` wins. */
 .editor-panel[hidden] {
   display: none;
 }
@@ -684,12 +733,22 @@ body {
 
 .editor-errors {
   background: var(--status-critical-bg);
+  color: var(--status-critical-text);
+}
+
+:root[data-theme="dark"] .editor-errors {
   color: var(--status-critical);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .editor-errors {
+    color: var(--status-critical);
+  }
 }
 
 .editor-warnings-box {
   background: var(--status-warning-bg);
-  color: #9a6a00;
+  color: var(--status-warning-text);
 }
 
 :root[data-theme="dark"] .editor-warnings-box {

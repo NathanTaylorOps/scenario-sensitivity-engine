@@ -6,16 +6,17 @@
 <title>Scenario Sensitivity Engine</title>
 <meta name="description" content="Monte Carlo business-decision modeling — probabilistic NPV, tornado sensitivity, and audience-specific views, reported as ranges (P90/P50/P10), not false-precision point estimates." />
 
-<!-- Open Graph / Twitter card. Uses a page-relative image path so it resolves
-     correctly under whatever domain this ends up deployed at (e.g. Render). -->
+<!-- Open Graph / Twitter card. Link previews (Slack, LinkedIn, etc.) fetch this
+     image directly rather than resolving it relative to the page, so it has
+     to be an absolute URL or it silently fails to show. -->
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Scenario Sensitivity Engine" />
 <meta property="og:description" content="Monte Carlo business-decision modeling — probabilistic NPV, tornado sensitivity, and audience-specific views, reported as ranges (P90/P50/P10), not false-precision point estimates." />
-<meta property="og:image" content="og-image.png" />
+<meta property="og:image" content="https://scenario-sensitivity-engine.onrender.com/og-image.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Scenario Sensitivity Engine" />
 <meta name="twitter:description" content="Monte Carlo business-decision modeling — probabilistic, not a single-point forecast." />
-<meta name="twitter:image" content="og-image.png" />
+<meta name="twitter:image" content="https://scenario-sensitivity-engine.onrender.com/og-image.png" />
 
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -55,10 +56,9 @@
       <div class="scenario-actions">
         <button id="scenario-save-btn" class="btn btn-primary" type="button">Save current as scenario</button>
         <button id="scenario-export-btn" class="btn btn-secondary" type="button">Export current to file</button>
-        <label class="btn btn-secondary scenario-import-label">
-          Import from file
-          <input id="scenario-import-input" type="file" accept="application/json" hidden />
-        </label>
+        <button id="scenario-import-btn" class="btn btn-secondary" type="button">Import from file</button>
+        <input id="scenario-import-input" type="file" accept="application/json" hidden />
+
       </div>
       <div id="scenario-message" class="editor-messages" hidden></div>
       <div class="field scenario-select-row">
