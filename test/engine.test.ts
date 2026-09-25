@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRng } from "../src/engine/rng.ts";
-import { sample, baseCase, sensitivityBounds, type Distribution } from "../src/engine/distributions.ts";
+import { sample, baseCase, sensitivityBounds, quantile, inverseStandardNormalCdf, betaCdf, type Distribution } from "../src/engine/distributions.ts";
 import { npv, paybackPeriod, discountedPaybackPeriod, breakevenVolume } from "../src/engine/financial.ts";
 import { percentiles, probabilityExceeds } from "../src/engine/percentiles.ts";
 import { runMonteCarlo, runBaseCase, convergenceTrace } from "../src/engine/montecarlo.ts";
@@ -126,12 +126,120 @@ test("baseCase matches each distribution's analytical mean", () => {
   assert.equal(baseCase({ kind: "lognormal", median: 2, sigma: 1 }), 2);
 });
 
-test("sensitivityBounds returns min/max for bounded distributions, symmetric bounds for normal", () => {
-  const b1 = sensitivityBounds({ kind: "triangular", min: 1, mode: 2, max: 9 });
-  assert.deepEqual(b1, { low: 1, high: 9 });
-  const b2 = sensitivityBounds({ kind: "normal", mean: 10, stdDev: 2 });
-  assert.ok(b2.low < 10 && b2.high > 10);
-  assert.ok(Math.abs(10 - b2.low - (b2.high - 10)) < 1e-9, "bounds should be symmetric around the mean");
+test("baseCase honours a custom PERT lambda", () => {
+  assert.equal(baseCase({ kind: "pert", min: 0, mode: 6, max: 12, lambda: 2 }), (0 + 2 * 6 + 12) / 4);
+});
+
+// --- Analytical quantiles (the basis for every tornado bound) ---
+
+test("inverseStandardNormalCdf matches known z-scores", () => {
+  assert.ok(Math.abs(inverseStandardNormalCdf(0.9) - 1.2815515655446004) < 1e-7);
+  assert.ok(Math.abs(inverseStandardNormalCdf(0.1) + 1.2815515655446004) < 1e-7);
+  assert.ok(Math.abs(inverseStandardNormalCdf(0.5)) < 1e-12);
+  assert.ok(Math.abs(inverseStandardNormalCdf(0.975) - 1.959963984540054) < 1e-7);
+});
+
+test("betaCdf matches closed-form special cases", () => {
+  // Beta(1,1) is uniform: CDF(x) = x.
+  assert.ok(Math.abs(betaCdf(0.3, 1, 1) - 0.3) < 1e-12);
+  // Beta(2,1): CDF(x) = x^2.
+  assert.ok(Math.abs(betaCdf(0.5, 2, 1) - 0.25) < 1e-12);
+  // Beta(1,2): CDF(x) = 1 - (1-x)^2.
+  assert.ok(Math.abs(betaCdf(0.5, 1, 2) - 0.75) < 1e-12);
+  // Symmetric Beta(3,3): median is 0.5.
+  assert.ok(Math.abs(betaCdf(0.5, 3, 3) - 0.5) < 1e-12);
+});
+
+test("quantile of a triangular distribution inverts its CDF exactly", () => {
+  const dist: Distribution = { kind: "triangular", min: 10, mode: 20, max: 50 };
+  const cdf = (x: number) => (x < 20 ? ((x - 10) * (x - 10)) / ((50 - 10) * (20 - 10)) : 1 - ((50 - x) * (50 - x)) / ((50 - 10) * (50 - 20)));
+  for (const p of [0.05, 0.1, 0.25, 0.5, 0.9, 0.99]) {
+    assert.ok(Math.abs(cdf(quantile(dist, p)) - p) < 1e-12, `CDF(quantile(${p})) should equal ${p}`);
+  }
+  assert.equal(quantile(dist, 0), 10);
+  assert.equal(quantile(dist, 1), 50);
+});
+
+test("quantile of a PERT distribution agrees with the empirical quantile of its own samples", () => {
+  const dist: Distribution = { kind: "pert", min: 100, mode: 150, max: 400 };
+  const rng = createRng(31);
+  const n = 60000;
+  const values = Array.from({ length: n }, () => sample(dist, rng)).sort((a, b) => a - b);
+  for (const p of [0.1, 0.5, 0.9]) {
+    const empirical = values[Math.floor(p * n)];
+    const analytical = quantile(dist, p);
+    assert.ok(Math.abs(empirical - analytical) < (400 - 100) * 0.01, `p=${p}: empirical ${empirical} vs analytical ${analytical}`);
+  }
+});
+
+test("quantile of a symmetric PERT is symmetric about the mode", () => {
+  const dist: Distribution = { kind: "pert", min: 0, mode: 50, max: 100 };
+  assert.ok(Math.abs(quantile(dist, 0.5) - 50) < 1e-9);
+  assert.ok(Math.abs(quantile(dist, 0.1) + quantile(dist, 0.9) - 100) < 1e-9);
+});
+
+test("quantile of normal and lognormal distributions match their closed forms", () => {
+  const z90 = 1.2815515655446004;
+  assert.ok(Math.abs(quantile({ kind: "normal", mean: 10, stdDev: 2 }, 0.9) - (10 + 2 * z90)) < 1e-6);
+  assert.ok(Math.abs(quantile({ kind: "lognormal", median: 0.03, sigma: 0.5 }, 0.1) - Math.exp(Math.log(0.03) - 0.5 * z90)) < 1e-9);
+});
+
+test("sensitivityBounds is the P10-P90 pair for every distribution family, not min/max for the bounded ones", () => {
+  const tri: Distribution = { kind: "triangular", min: 1, mode: 2, max: 9 };
+  const triBounds = sensitivityBounds(tri);
+  assert.ok(triBounds.low > 1 && triBounds.high < 9, "a bounded distribution's tornado swing must sit strictly inside its min/max");
+  assert.deepEqual(triBounds, { low: quantile(tri, 0.1), high: quantile(tri, 0.9) });
+
+  const pert: Distribution = { kind: "pert", min: 150000, mode: 250000, max: 500000 };
+  const pertBounds = sensitivityBounds(pert);
+  assert.ok(pertBounds.low > 150000 && pertBounds.high < 500000);
+
+  const normalBounds = sensitivityBounds({ kind: "normal", mean: 10, stdDev: 2 });
+  assert.ok(Math.abs(10 - normalBounds.low - (normalBounds.high - 10)) < 1e-9, "bounds should be symmetric around the mean");
+
+  assert.deepEqual(sensitivityBounds({ kind: "constant", value: 3 }), { low: 3, high: 3 });
+});
+
+// --- Floored normal (non-negative demand) ---
+
+test("a normal distribution with min: 0 never samples below zero, and its quantiles respect the floor", () => {
+  const dist: Distribution = { kind: "normal", mean: 100, stdDev: 80, min: 0 };
+  const rng = createRng(77);
+  let clamped = 0;
+  for (let i = 0; i < 20000; i++) {
+    const v = sample(dist, rng);
+    assert.ok(v >= 0, `sample ${v} below the floor`);
+    if (v === 0) clamped++;
+  }
+  assert.ok(clamped > 0, "with mean 1.25 sd above zero, some draws should have hit the floor");
+  assert.equal(quantile(dist, 0.01), 0);
+  assert.ok(quantile(dist, 0.9) > 100);
+});
+
+test("the personas' demand drivers are floored at zero", () => {
+  for (const persona of personas) {
+    for (const decision of persona.decisions) {
+      for (const driver of decision.drivers) {
+        if (driver.distribution.kind === "normal") {
+          assert.equal(driver.distribution.min, 0, `${persona.id}/${decision.id}/${driver.id} should be floored at 0`);
+        }
+      }
+    }
+  }
+});
+
+test("validatePersona rejects a normal floor that sits above the mean", () => {
+  const bad: Persona = {
+    id: "bad-floor",
+    name: "Bad floor",
+    tagline: "test",
+    decisions: [
+      makeMinimalDecision({
+        drivers: [{ id: "x", label: "X", unit: "units/yr", category: "revenue", distribution: { kind: "normal", mean: 10, stdDev: 2, min: 50 }, rationale: "test" }],
+      }),
+    ],
+  };
+  assert.throws(() => validatePersona(bad), PersonaValidationError);
 });
 
 // --- Financial math: edge cases and known values ---

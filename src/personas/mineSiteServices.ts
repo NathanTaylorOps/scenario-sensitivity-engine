@@ -212,8 +212,8 @@ const crewDecision: Decision = {
       label: "Additional call-out demand captured per year",
       unit: "call-outs/yr",
       category: "revenue",
-      distribution: { kind: "normal", mean: 260, stdDev: 90 },
-      rationale: "A second crew roughly doubles response capacity relative to the truck decision's own incremental-call-out driver (mean ~133/yr) — sized to real second-crew throughput, not an independent guess. Aggregated demand across many mine-site accounts — normal fits a CLT-driven aggregate variable, the same basis as the manufacturer persona's demand-ramp driver.",
+      distribution: { kind: "normal", mean: 260, stdDev: 90, min: 0 },
+      rationale: "A second crew roughly doubles response capacity relative to the truck decision's own incremental-call-out driver (mean ~133/yr) — sized to real second-crew throughput, not an independent guess. Aggregated demand across many mine-site accounts — normal fits a CLT-driven aggregate variable, floored at zero since demand cannot be negative; the same basis as the manufacturer persona's demand-ramp driver.",
     },
     {
       id: "contributionMarginPerCallOut",

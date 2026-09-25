@@ -51,6 +51,9 @@ function validateDistribution(dist: Distribution): string[] {
     }
     case "normal":
       if (dist.stdDev < 0) problems.push(`normal stdDev must be >= 0, got ${dist.stdDev}`);
+      if (dist.min !== undefined && !(dist.min <= dist.mean)) {
+        problems.push(`normal min (floor) must not exceed the mean — it is a guard against sign-flipped tail draws, not a way to shift the centre; got min=${dist.min}, mean=${dist.mean}`);
+      }
       break;
     case "lognormal":
       if (dist.median <= 0) problems.push(`lognormal median must be > 0 (lognormal is strictly positive), got ${dist.median}`);
@@ -101,7 +104,7 @@ export function distributionRange(dist: Distribution): { low: number; high: numb
     case "pert":
       return { low: dist.min, high: dist.max };
     case "normal":
-      return { low: dist.mean - 4 * dist.stdDev, high: dist.mean + 4 * dist.stdDev };
+      return { low: Math.max(dist.min ?? -Infinity, dist.mean - 4 * dist.stdDev), high: dist.mean + 4 * dist.stdDev };
     case "lognormal":
       return { low: 0, high: dist.median * Math.exp(4 * dist.sigma) };
   }

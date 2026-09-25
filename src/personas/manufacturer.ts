@@ -203,8 +203,8 @@ const headcountDecision: Decision = {
       label: "Additional demand captured per year",
       unit: "units/yr",
       category: "revenue",
-      distribution: { kind: "normal", mean: 19000, stdDev: 6000 },
-      rationale: "A second shift roughly doubles floor capacity, not a marginal increment — sized to real second-shift throughput, not the first shift's incremental-unit range. Aggregated demand across many customers — normal fits a CLT-driven aggregate variable.",
+      distribution: { kind: "normal", mean: 19000, stdDev: 6000, min: 0 },
+      rationale: "A second shift roughly doubles floor capacity, not a marginal increment — sized to real second-shift throughput, not the first shift's incremental-unit range. Aggregated demand across many customers — normal fits a CLT-driven aggregate variable, floored at zero since demand cannot be negative.",
     },
     {
       id: "contributionMarginPerUnit",

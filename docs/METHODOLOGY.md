@@ -16,7 +16,12 @@ never a single-point forecast.
   estimating.
 - **Normal** — aggregated or averaged effects across many small independent
   factors, where the Central Limit Theorem applies (e.g. demand aggregated
-  across many customers).
+  across many customers). A normal can carry an optional floor (`min`): the
+  demand drivers are floored at zero, because a volume cannot be negative
+  and the left tail of a normal would otherwise occasionally produce one.
+  The floor sits far enough out (over 2.5 standard deviations below the
+  mean for both personas' demand drivers, under 0.2% of the mass) that the
+  base case keeps using the untruncated mean.
 - **Lognormal** — strictly positive, multiplicative or right-skewed variables
   (e.g. input-cost inflation, which has occasional upside shocks but can't go
   meaningfully negative).
@@ -24,12 +29,19 @@ never a single-point forecast.
 ## Sensitivity before Monte Carlo
 
 Every decision runs a one-at-a-time tornado analysis first: each driver is
-swung between a low and high bound (its stated min/max for bounded
-distributions, or its 10th/90th percentile for unbounded ones — see
-`sensitivityBounds` in `src/engine/distributions.ts`) while every other driver
-sits at its base case, and the resulting NPV swing is ranked. This decides
-which drivers actually matter before the full simulation runs, rather than
-treating every input as equally worth modeling in detail.
+swung between its **10th and 90th percentile** while every other driver
+sits at its base case, and the resulting NPV swing is ranked. The same
+percentile pair is used for every distribution family (see
+`sensitivityBounds` and `quantile` in `src/engine/distributions.ts`, which
+compute the quantiles analytically — a closed form for triangular, normal and
+lognormal, a numerically inverted Beta CDF for PERT). Swinging a bounded PERT
+across its full min–max while a normal swings P10–P90 would measure one
+driver over ~100% of its mass and the other over 80%, and systematically
+overstate the bounded drivers' importance; using P10–P90 everywhere keeps
+the ranking comparable across drivers and stops one extreme corner of a
+range from dominating it. This decides which drivers actually matter before
+the full simulation runs, rather than treating every input as equally worth
+modelling in detail.
 
 ## Output convention: ranges, not points
 
