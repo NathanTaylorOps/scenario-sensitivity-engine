@@ -191,7 +191,7 @@ function renderStatTiles(probabilityPositive: number, baseNpv: number, basePayba
     // glance whether this leans good, marginal, or critical.
     { label: "Probability NPV > 0", value: `${(probabilityPositive * 100).toFixed(0)}%`, tied: true },
     { label: "Base-case NPV", value: formatCompactUsd(baseNpv), tied: false },
-    { label: "Base-case payback", value: basePayback === null ? "Never" : `${basePayback.toFixed(1)} yrs`, tied: false },
+    { label: "Base-case payback", value: basePayback === null ? "Not recovered" : `${basePayback.toFixed(1)} yrs`, tied: false },
   ];
   for (const tile of tiles) {
     const el = document.createElement("div");

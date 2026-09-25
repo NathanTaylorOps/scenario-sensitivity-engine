@@ -155,8 +155,22 @@ test("paybackPeriod returns null when never recovered", () => {
   assert.equal(paybackPeriod([-1000, 10, 10, 10]), null);
 });
 
-test("paybackPeriod returns 0 when year-0 cash flow is non-negative", () => {
+test("paybackPeriod returns 0 only when the cumulative position never goes negative", () => {
   assert.equal(paybackPeriod([50, 10, 10]), 0);
+  assert.equal(paybackPeriod([0, 10, 10]), 0);
+});
+
+test("paybackPeriod measures a deferred outlay (zero year 0, loss in year 1) from t=0, not as instant recovery", () => {
+  // A hiring decision: no capex, wages exceed revenue in year 1, recovered during year 4.
+  // Cumulative: 0, -32000, -17000, -2000, +13000 -> recovery 2000/15000 into year 4.
+  const years = paybackPeriod([0, -32000, 15000, 15000, 15000]);
+  assert.ok(years !== null);
+  assert.ok(Math.abs(years! - (3 + 2000 / 15000)) < 1e-9, `expected ~3.13 years, got ${years}`);
+});
+
+test("paybackPeriod returns null for a deferred outlay that is never recovered, never 0", () => {
+  assert.equal(paybackPeriod([0, -32000, 15000]), null);
+  assert.equal(paybackPeriod([0, -155320, -116603]), null);
 });
 
 test("discountedPaybackPeriod is never shorter than simple payback for a positive discount rate", () => {

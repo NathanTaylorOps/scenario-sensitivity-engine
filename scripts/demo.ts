@@ -17,7 +17,7 @@ const SEED = 42;
 for (const decision of manufacturerPersona.decisions) {
   console.log(`\n=== ${decision.label} ===`);
   const base = runBaseCase(decision);
-  console.log(`Base case NPV: $${base.npv.toFixed(0)}  |  payback: ${base.payback?.toFixed(2) ?? "never"} yrs`);
+  console.log(`Base case NPV: $${base.npv.toFixed(0)}  |  payback: ${base.payback === null ? "not recovered within horizon" : `${base.payback.toFixed(2)} yrs`}`);
 
   const { npvSamples, cashFlowSamples } = runMonteCarlo(decision, { iterations: ITERATIONS, seed: SEED, captureCashFlows: true });
   const p = percentiles(npvSamples);
