@@ -1,3 +1,4 @@
+import { analysedDrivers } from "./tornado.ts";
 import type { Decision } from "./types.ts";
 
 /**
@@ -12,17 +13,23 @@ import type { Decision } from "./types.ts";
  * shares sum to 1. This is a stated approximation, not a full Sobol
  * variance decomposition — but it's a defensible one here specifically
  * because every driver in this engine is sampled independently (see
- * docs/METHODOLOGY.md's "known limitations" section): with no correlation
- * between drivers, r² shares are a much more literal variance decomposition
- * than they would be if drivers moved together, where shared variance would
- * get double-counted across correlated drivers.
+ * docs/METHODOLOGY.md): with no correlation between drivers, r² shares are
+ * a much more literal variance decomposition than they would be if drivers
+ * moved together, where shared variance would get double-counted across
+ * correlated drivers.
+ *
+ * The discount rate is included as a driver. It is sampled per trial like
+ * everything else, and normalising over the operating drivers alone would
+ * silently reassign its share of the spread to them.
  */
 export interface VarianceContributionRow {
   driverId: string;
   label: string;
   /** Pearson correlation between this driver's sampled value and NPV across trials. Sign shows direction, not just magnitude. */
   correlation: number;
-  /** This driver's r², normalized against the sum of every driver's r² so all shares sum to 1. */
+  /** The raw r² — the share of NPV variance a linear fit on this driver alone explains, before normalisation. */
+  rSquared: number;
+  /** This driver's r², normalized against the sum of every driver's r² (discount rate included) so all shares sum to 1. */
   varianceShare: number;
 }
 
@@ -35,8 +42,14 @@ export function varianceContribution(
     throw new Error("varianceContribution: npvSamples and inputsSamples must come from the same trial run (same length)");
   }
 
-  const raw = decision.drivers.map((driver) => {
-    const xs = inputsSamples.map((inputs) => inputs[driver.id]);
+  const raw = analysedDrivers(decision).map((driver) => {
+    const xs = inputsSamples.map((inputs) => {
+      const value = inputs[driver.id];
+      if (value === undefined) {
+        throw new Error(`varianceContribution: inputsSamples has no entry for driver "${driver.id}" — run runMonteCarlo with captureInputs: true`);
+      }
+      return value;
+    });
     const correlation = pearsonCorrelation(xs, npvSamples);
     return { driverId: driver.id, label: driver.label, correlation, rSquared: correlation * correlation };
   });
@@ -48,6 +61,7 @@ export function varianceContribution(
       driverId: row.driverId,
       label: row.label,
       correlation: row.correlation,
+      rSquared: row.rSquared,
       varianceShare: row.rSquared / totalRSquared,
     }))
     .sort((a, b) => b.varianceShare - a.varianceShare);

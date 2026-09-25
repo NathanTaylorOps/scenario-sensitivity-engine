@@ -1,30 +1,34 @@
-import { baseCase, sensitivityBounds } from "./distributions.ts";
-import { npv } from "./financial.ts";
-import { guardInputs } from "./guardedInputs.ts";
-import type { Decision, TornadoRow } from "./types.ts";
+import { sensitivityBounds } from "./distributions.ts";
+import { baseCaseInputs, npvAtInputs } from "./montecarlo.ts";
+import type { Decision, Driver, TornadoRow } from "./types.ts";
+
+/**
+ * Every input the tornado, variance breakdown and goal-seek treat as a
+ * driver: the decision's operating drivers plus its discount rate. The
+ * hurdle rate is sampled like any other uncertain input and is often one of
+ * the larger single contributors to NPV spread, so excluding it would hand
+ * its share of the variance to the other drivers and hide a lever a CFO
+ * can actually pull.
+ */
+export function analysedDrivers(decision: Decision): Driver[] {
+  return [...decision.drivers, decision.discountRate];
+}
 
 /**
  * One-at-a-time sensitivity: hold every driver at its base case except one,
- * swing that one between its low and high bound, and record the resulting
- * swing in NPV. Ranked by absolute swing, this is the tornado chart — and
- * per the build plan, it runs BEFORE Monte Carlo to decide which 3-5 drivers
- * are worth full distributional treatment.
+ * swing that one between its P10 and P90, and record the resulting swing in
+ * NPV. Ranked by absolute swing, this is the tornado chart — it runs BEFORE
+ * Monte Carlo to decide which 3-5 drivers are worth full distributional
+ * treatment.
  */
 export function tornadoAnalysis(decision: Decision): TornadoRow[] {
-  const baseInputs: Record<string, number> = {};
-  for (const driver of decision.drivers) {
-    baseInputs[driver.id] = baseCase(driver.distribution);
-  }
-  const baseDiscountRate = baseCase(decision.discountRate.distribution);
+  const baseInputs = baseCaseInputs(decision);
 
-  const rows: TornadoRow[] = decision.drivers.map((driver) => {
+  const rows: TornadoRow[] = analysedDrivers(decision).map((driver) => {
     const { low, high } = sensitivityBounds(driver.distribution);
 
-    const lowInputs = { ...baseInputs, [driver.id]: low };
-    const highInputs = { ...baseInputs, [driver.id]: high };
-
-    const lowNpv = npv(baseDiscountRate, decision.cashFlows(guardInputs(lowInputs, decision.id)));
-    const highNpv = npv(baseDiscountRate, decision.cashFlows(guardInputs(highInputs, decision.id)));
+    const lowNpv = npvAtInputs(decision, { ...baseInputs, [driver.id]: low });
+    const highNpv = npvAtInputs(decision, { ...baseInputs, [driver.id]: high });
 
     return {
       driverId: driver.id,

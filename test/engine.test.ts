@@ -4,10 +4,10 @@ import { createRng } from "../src/engine/rng.ts";
 import { sample, baseCase, sensitivityBounds, quantile, inverseStandardNormalCdf, betaCdf, type Distribution } from "../src/engine/distributions.ts";
 import { npv, paybackPeriod, discountedPaybackPeriod, breakevenVolume } from "../src/engine/financial.ts";
 import { percentiles, probabilityExceeds } from "../src/engine/percentiles.ts";
-import { runMonteCarlo, runBaseCase, convergenceTrace } from "../src/engine/montecarlo.ts";
+import { runMonteCarlo, runBaseCase, convergenceTrace, baseCaseInputs, sharedDiscountRateDriver } from "../src/engine/montecarlo.ts";
 import { tornadoAnalysis } from "../src/engine/tornado.ts";
 import { afterTaxCashFlows } from "../src/engine/tax.ts";
-import { solveForZeroNpv } from "../src/engine/goalseek.ts";
+import { solveForZeroNpv, feasibleDomain } from "../src/engine/goalseek.ts";
 import { decisionVerdict } from "../src/engine/verdict.ts";
 import { nearestScenario, representativeCashFlows } from "../src/engine/scenarios.ts";
 import { compareDecisions, runPortfolioMonteCarlo, portfolioAffordability } from "../src/engine/portfolio.ts";
@@ -366,12 +366,24 @@ test("tornadoAnalysis ranks drivers by descending swing", () => {
   }
 });
 
-test("tornadoAnalysis covers every driver exactly once", () => {
+test("tornadoAnalysis covers every driver plus the discount rate exactly once", () => {
   const decision = manufacturerPersona.decisions[0];
   const rows = tornadoAnalysis(decision);
-  assert.equal(rows.length, decision.drivers.length);
+  assert.equal(rows.length, decision.drivers.length + 1);
   const ids = new Set(rows.map((r) => r.driverId));
-  assert.equal(ids.size, decision.drivers.length);
+  assert.equal(ids.size, decision.drivers.length + 1);
+  assert.ok(ids.has(decision.discountRate.id), "the hurdle rate must appear in the tornado ranking");
+});
+
+test("tornadoAnalysis: the discount-rate row swings NPV between the rate's P10 and P90, everything else at base case", () => {
+  const decision = manufacturerPersona.decisions[0];
+  const row = tornadoAnalysis(decision).find((r) => r.driverId === decision.discountRate.id)!;
+  const bounds = sensitivityBounds(decision.discountRate.distribution);
+  const inputs = baseCaseInputs(decision);
+  const atLow = npv(bounds.low, decision.cashFlows(inputs, 0));
+  const atHigh = npv(bounds.high, decision.cashFlows(inputs, 0));
+  assert.ok(Math.abs(row.swing - Math.abs(atHigh - atLow)) < 1e-6);
+  assert.ok(row.swing > 0, "a sampled hurdle rate must show a non-zero NPV swing");
 });
 
 // --- Edge cases: degenerate / zero-variance inputs ---
@@ -443,6 +455,57 @@ test("solveForZeroNpv throws for an unknown driver id", () => {
   assert.throws(() => solveForZeroNpv(decision, "not-a-real-driver"));
 });
 
+test("solveForZeroNpv can solve for the discount rate itself (the IRR, holding drivers at base case)", () => {
+  const decision = manufacturerPersona.decisions[0];
+  const result = solveForZeroNpv(decision, decision.discountRate.id);
+  assert.ok(result.feasible && result.solvedValue !== null, `expected a feasible IRR, got ${result.note}`);
+  const irr = result.solvedValue!;
+  assert.ok(irr > 0 && irr < 5, `IRR ${irr} outside the financing-rate domain`);
+  const inputs = baseCaseInputs(decision);
+  assert.ok(Math.abs(npv(irr, decision.cashFlows(inputs, 0))) < 1, "NPV at the solved rate should be ~0");
+});
+
+test("solveForZeroNpv confines the search to the driver's feasible domain and reports infeasibility rather than a nonsense value", () => {
+  // A decision whose NPV is negative at every non-negative tax rate: the only
+  // algebraic root is a negative rate, which is not a real tax rate.
+  const decision: Decision = {
+    id: "always-negative",
+    label: "Always negative",
+    description: "for goal-seek domain tests",
+    horizonYears: 1,
+    discountRate: { id: "discountRate", label: "rate", unit: "%/yr", category: "financing", distribution: { kind: "constant", value: 0.1 }, rationale: "test" },
+    drivers: [
+      { id: "taxRate", label: "Tax rate", unit: "%", category: "financing", distribution: { kind: "pert", min: 0.25, mode: 0.3, max: 0.3 }, rationale: "test" },
+      { id: "profit", label: "Profit", unit: "AUD", category: "revenue", distribution: { kind: "constant", value: 1000 }, rationale: "test" },
+    ],
+    cashFlows(inputs) {
+      return [-2000, inputs.profit * (1 - inputs.taxRate)];
+    },
+  };
+  const result = solveForZeroNpv(decision, "taxRate");
+  assert.equal(result.feasible, false);
+  assert.equal(result.solvedValue, null);
+  assert.deepEqual(result.domain, { low: 0, high: 1 });
+  assert.match(result.note, /No feasible breakeven/);
+});
+
+test("solveForZeroNpv: an explicit domain override is honoured", () => {
+  const decision = manufacturerPersona.decisions[0];
+  const unconstrained = solveForZeroNpv(decision, "capex");
+  assert.ok(unconstrained.feasible && unconstrained.solvedValue! > 0);
+  const tooTight = solveForZeroNpv(decision, "capex", { domain: { low: 0, high: unconstrained.solvedValue! * 0.5 } });
+  assert.equal(tooTight.feasible, false);
+});
+
+test("feasibleDomain: shares are [0, 1], rates can't fall below -100%, financing rates can't be negative, magnitudes are non-negative", () => {
+  const base = { id: "x", label: "x", rationale: "t", distribution: { kind: "constant", value: 1 } as const };
+  assert.deepEqual(feasibleDomain({ ...base, unit: "%", category: "financing" }), { low: 0, high: 1 });
+  assert.deepEqual(feasibleDomain({ ...base, unit: "%/yr", category: "cost" }), { low: -1, high: 5 });
+  assert.deepEqual(feasibleDomain({ ...base, unit: "%/yr", category: "financing" }), { low: 0, high: 5 });
+  assert.deepEqual(feasibleDomain({ ...base, unit: "AUD", category: "capex" }), { low: 0, high: Infinity });
+  assert.deepEqual(feasibleDomain({ ...base, unit: "workers", category: "cost" }), { low: 0, high: Infinity });
+});
+
 // --- Verdict synthesis ---
 
 test("decisionVerdict: thresholds are boundary-correct at 70% and 40%", () => {
@@ -505,6 +568,70 @@ test("runPortfolioMonteCarlo combined outlay is at least as large as any single 
   const capexOnly = runMonteCarlo(manufacturerPersona.decisions[0], { iterations: 2000, seed: 3, captureCashFlows: true });
   const maxSingleOutlay = Math.max(...capexOnly.cashFlowSamples!.map((cf) => -cf[0]));
   assert.ok(Math.max(...result.outlaySamples) >= maxSingleOutlay - 1, "combined outlay across all decisions should be at least the largest single decision's outlay");
+});
+
+test("a joint run draws one hurdle rate per trial and shares it across every decision", () => {
+  // Two decisions with identical, rate-only NPV: if each drew its own rate, their
+  // per-trial NPVs would differ; with one shared draw they are identical every trial.
+  const makeRateOnly = (id: string): Decision => ({
+    id,
+    label: id,
+    description: "for shared-rate tests",
+    horizonYears: 1,
+    discountRate: { id: "discountRate", label: "rate", unit: "%/yr", category: "financing", distribution: { kind: "pert", min: 0.05, mode: 0.1, max: 0.2 }, rationale: "test" },
+    drivers: [{ id: "flow", label: "Flow", unit: "AUD", category: "revenue", distribution: { kind: "constant", value: 100 }, rationale: "test" }],
+    cashFlows(inputs) {
+      return [-50, inputs.flow];
+    },
+  });
+  const a = makeRateOnly("a");
+  const b = makeRateOnly("b");
+  const portfolio = runPortfolioMonteCarlo([a, b], { iterations: 300, seed: 5 });
+  const soloA = runMonteCarlo(a, { iterations: 300, seed: 5 });
+  // Combined NPV must be exactly twice one decision's NPV at the shared rate in every trial —
+  // i.e. each trial's combined value is 2 * (-50 + 100/(1+r)) for a single r.
+  for (const combined of portfolio.npvSamples) {
+    const perDecision = combined / 2;
+    const impliedRate = 100 / (perDecision + 50) - 1;
+    assert.ok(impliedRate >= 0.05 && impliedRate <= 0.2, `implied shared rate ${impliedRate} outside the hurdle-rate range`);
+    // With independent draws the two halves would generally differ and no single r would reproduce the sum exactly.
+    assert.ok(Math.abs(2 * (-50 + 100 / (1 + impliedRate)) - combined) < 1e-9);
+  }
+  assert.equal(soloA.npvSamples.length, 300);
+
+  const sequenced = runSequencedPortfolio(
+    [
+      { decision: a, startYear: 0 },
+      { decision: b, startYear: 0 },
+    ],
+    { iterations: 300, seed: 5 },
+  );
+  for (const combined of sequenced.combinedNpvSamples) {
+    const impliedRate = 100 / (combined / 2 + 50) - 1;
+    assert.ok(impliedRate >= 0.05 && impliedRate <= 0.2, `sequenced implied shared rate ${impliedRate} outside the hurdle-rate range`);
+  }
+});
+
+test("a joint run rejects decisions that disagree on the hurdle-rate distribution", () => {
+  const [capexDecision] = manufacturerPersona.decisions;
+  const differentRate: Decision = {
+    ...capexDecision,
+    id: "different-rate",
+    discountRate: { ...capexDecision.discountRate, distribution: { kind: "constant", value: 0.5 } },
+  };
+  assert.throws(() => runPortfolioMonteCarlo([capexDecision, differentRate], { iterations: 10, seed: 1 }), /different discount-rate distributions/);
+  assert.throws(
+    () =>
+      runSequencedPortfolio(
+        [
+          { decision: capexDecision, startYear: 0 },
+          { decision: differentRate, startYear: 1 },
+        ],
+        { iterations: 10, seed: 1 },
+      ),
+    /different discount-rate distributions/,
+  );
+  assert.equal(sharedDiscountRateDriver(manufacturerPersona.decisions).id, "discountRate");
 });
 
 test("runPortfolioMonteCarlo is reproducible for a fixed seed", () => {
@@ -583,6 +710,35 @@ test("varianceContribution: shares sum to 1", () => {
   const rows = varianceContribution(decision, result.npvSamples, result.inputsSamples!);
   const total = rows.reduce((sum, r) => sum + r.varianceShare, 0);
   assert.ok(Math.abs(total - 1) < 1e-9, `expected shares to sum to 1, got ${total}`);
+});
+
+test("varianceContribution includes the discount rate as a driver, so its share is not handed to the others", () => {
+  // NPV = -100 + 100/(1+r): the ONLY uncertainty is the discount rate, so it must own ~all the variance.
+  const decision: Decision = {
+    id: "rate-only",
+    label: "Rate only",
+    description: "for variance tests",
+    horizonYears: 1,
+    discountRate: { id: "discountRate", label: "rate", unit: "%/yr", category: "financing", distribution: { kind: "normal", mean: 0.1, stdDev: 0.02 }, rationale: "test" },
+    drivers: [{ id: "flow", label: "Flow", unit: "AUD", category: "revenue", distribution: { kind: "constant", value: 100 }, rationale: "test" }],
+    cashFlows(inputs) {
+      return [-100, inputs.flow];
+    },
+  };
+  const result = runMonteCarlo(decision, { iterations: 3000, seed: 8, captureInputs: true });
+  assert.ok(result.inputsSamples![0].discountRate !== undefined, "captured inputs must carry the sampled discount rate");
+  const rows = varianceContribution(decision, result.npvSamples, result.inputsSamples!);
+  assert.equal(rows[0].driverId, "discountRate");
+  assert.ok(rows[0].varianceShare > 0.99, `expected the rate to own the variance, got ${rows[0].varianceShare}`);
+  assert.ok(rows[0].rSquared > 0.99, "raw r² should be exposed alongside the normalised share");
+});
+
+test("varianceContribution on a real decision gives the discount rate a non-zero share", () => {
+  const decision = manufacturerPersona.decisions[0];
+  const result = runMonteCarlo(decision, { iterations: 5000, seed: 2, captureInputs: true });
+  const rows = varianceContribution(decision, result.npvSamples, result.inputsSamples!);
+  const rateRow = rows.find((r) => r.driverId === decision.discountRate.id);
+  assert.ok(rateRow && rateRow.varianceShare > 0.001, "a sampled hurdle rate must carry some of the NPV variance");
 });
 
 // --- Named compound stress scenarios ---

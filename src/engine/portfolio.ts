@@ -1,7 +1,7 @@
 import { createRng } from "./rng.ts";
-import { sampleStandardNormal } from "./distributions.ts";
+import { sample, sampleStandardNormal } from "./distributions.ts";
 import { percentiles, probabilityExceeds } from "./percentiles.ts";
-import { runMonteCarlo, runTrial, type RunOptions } from "./montecarlo.ts";
+import { runMonteCarlo, runTrial, sharedDiscountRateDriver, type RunOptions } from "./montecarlo.ts";
 import { decisionVerdict, type VerdictResult } from "./verdict.ts";
 import type { Decision, Percentiles as PercentilesType } from "./types.ts";
 
@@ -47,25 +47,28 @@ export interface PortfolioRunOutput {
 
 /**
  * Runs every decision's trials together, sharing ONE macro-conditions draw
- * per iteration across all of them (see the doc comment on
- * Decision.cashFlows in types.ts for why: a downturn should hit demand-linked
- * drivers across decisions together, not independently, when they're being
- * evaluated as a combined bet). This is a deliberately simplified stand-in
+ * and ONE hurdle-rate draw per iteration across all of them (see the doc
+ * comment on Decision.cashFlows in types.ts for why: a downturn should hit
+ * demand-linked drivers across decisions together, not independently, when
+ * they're being evaluated as a combined bet; and the firm has one cost of
+ * capital, not one per project). This is a deliberately simplified stand-in
  * for full covariance-matrix / Cholesky-decomposition correlation modeling —
  * documented as a stated simplification in docs/METHODOLOGY.md, not silently
  * assumed to be the same thing.
  */
 export function runPortfolioMonteCarlo(decisions: Decision[], options: RunOptions): PortfolioRunOutput {
   const rng = createRng(options.seed);
+  const hurdleRate = sharedDiscountRateDriver(decisions);
   const npvSamples: number[] = new Array(options.iterations);
   const outlaySamples: number[] = new Array(options.iterations);
 
   for (let i = 0; i < options.iterations; i++) {
     const macroFactor = sampleStandardNormal(rng);
+    const discountRate = sample(hurdleRate.distribution, rng);
     let combinedNpv = 0;
     let combinedOutlay = 0;
     for (const decision of decisions) {
-      const trial = runTrial(decision, rng, macroFactor);
+      const trial = runTrial(decision, rng, macroFactor, discountRate);
       combinedNpv += trial.npv;
       combinedOutlay += -trial.cashFlows[0]; // year-0 flow is negative for an outlay; flip sign to a positive capital-required figure
     }

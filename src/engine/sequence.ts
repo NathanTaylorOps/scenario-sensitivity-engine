@@ -1,7 +1,7 @@
 import { createRng } from "./rng.ts";
-import { sample } from "./distributions.ts";
-import { sampleStandardNormal } from "./distributions.ts";
+import { sample, sampleStandardNormal } from "./distributions.ts";
 import { guardInputs } from "./guardedInputs.ts";
+import { sharedDiscountRateDriver } from "./montecarlo.ts";
 import { percentiles } from "./percentiles.ts";
 import type { Decision, Percentiles } from "./types.ts";
 
@@ -16,7 +16,7 @@ import type { Decision, Percentiles } from "./types.ts";
  * CNC line's added capacity) caps what another decision (the second shift)
  * can actually sell. Two decisions "competing for the same budget" and two
  * decisions "the second one only exists because of the first" are different
- * situations, and conflating them was flagged directly as a gap.
+ * situations and need different machinery.
  */
 export interface SequencedDecision {
   decision: Decision;
@@ -45,7 +45,7 @@ export interface SequenceRunOptions {
 }
 
 export interface SequenceRunOutput {
-  /** Combined NPV per trial: each decision's own cash flows, discounted at its own hurdle rate but timed against the shared calendar (a cash flow starting in calendar year `startYear + t` is discounted over `startYear + t` periods, not just `t`). */
+  /** Combined NPV per trial: each decision's own cash flows, discounted at the one hurdle rate drawn for that trial and timed against the shared calendar (a cash flow starting in calendar year `startYear + t` is discounted over `startYear + t` periods, not just `t`). */
   combinedNpvSamples: number[];
   /**
    * The lowest cumulative combined cash balance reached at any point on the
@@ -77,6 +77,7 @@ export function runSequencedPortfolio(sequence: SequencedDecision[], options: Se
   validateSequence(sequence);
 
   const rng = createRng(options.seed);
+  const hurdleRate = sharedDiscountRateDriver(sequence.map((entry) => entry.decision));
   const calendarLength = Math.max(...sequence.map((entry) => entry.startYear + entry.decision.horizonYears)) + 1;
 
   const combinedNpvSamples: number[] = new Array(options.iterations);
@@ -85,6 +86,7 @@ export function runSequencedPortfolio(sequence: SequencedDecision[], options: Se
 
   for (let trial = 0; trial < options.iterations; trial++) {
     const macroFactor = sampleStandardNormal(rng);
+    const discountRate = sample(hurdleRate.distribution, rng); // one cost of capital per trial, shared by every decision on the calendar
     const calendar: number[] = new Array(calendarLength).fill(0);
     const upstreamInputsById = new Map<string, Record<string, number>>();
     let combinedNpv = 0;
@@ -94,7 +96,7 @@ export function runSequencedPortfolio(sequence: SequencedDecision[], options: Se
 
       let inputs: Record<string, number> = {};
       for (const driver of decision.drivers) inputs[driver.id] = sample(driver.distribution, rng);
-      const discountRate = sample(decision.discountRate.distribution, rng);
+      inputs[decision.discountRate.id] = discountRate;
 
       if (dependsOn) {
         const upstreamInputs = upstreamInputsById.get(dependsOn.decisionId);

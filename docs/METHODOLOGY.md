@@ -60,16 +60,25 @@ alongside its range, never alone, because a point estimate on a Monte Carlo
 output is false precision: the input assumptions carry far more uncertainty
 than any two-decimal-place answer implies.
 
-## Known limitations, stated plainly
+## Driver independence and the discount rate
 
 Distribution *shape* generally matters less to the outcome than getting the
 central estimate and range right — the input assumptions do more work than
 the choice of triangular vs. normal vs. lognormal. Drivers in this model are
 treated as **independent** unless noted otherwise; where two drivers would
 realistically move together (e.g. demand and price in a downturn), that
-correlation is not currently modeled, which understates tail risk in either
-direction. The discount rate is itself sampled as an uncertain input, since
-it's frequently one of the largest single drivers of NPV variance on its own.
+correlation is captured only through the shared macro factor described
+below, which understates tail risk that runs through any other channel.
+
+The discount rate is sampled as an uncertain input like every other driver,
+and it is treated as a driver everywhere: it has its own row in the tornado
+ranking, its own share in the variance-contribution breakdown, and can be
+the target of a goal-seek. It is the firm's hurdle rate, not the project's,
+so any run that evaluates several decisions together (portfolio, sequence)
+draws it **once per trial** and applies that one rate to every decision in
+the trial (`sharedDiscountRateDriver` in `src/engine/montecarlo.ts`); a set
+of decisions that disagree on the hurdle-rate distribution is rejected
+rather than silently resolved.
 
 ## Base-case vs. simulated
 
@@ -116,11 +125,21 @@ resell would be worse than omitting it.
 `solveForZeroNpv(decision, driverId)` answers "what would this one driver need
 to be for NPV to hit exactly zero?", holding every other driver at its base
 case. It expands a search bracket outward from the driver's base-case value
-until NPV changes sign, then bisects to convergence. This deliberately makes
-no assumption about the driver's own distribution bounds: a solved value that
-falls *outside* the range judged plausible is itself a finding worth stating
-("this only works if margin holds above a level nobody in the tornado range
-expects"), not something to hide by constraining the search.
+until NPV changes sign, then bisects to convergence. The driver can be any
+operating driver or the discount rate itself (solving for the rate gives the
+decision's IRR at base case).
+
+The search is not limited to the driver's own distribution range — a solved
+value that falls *outside* the range judged plausible is itself a finding
+worth stating ("this only works if margin holds above a level nobody in the
+tornado range expects"). It *is* limited to the driver's **feasible domain**
+(`feasibleDomain` in `src/engine/goalseek.ts`): a share such as a tax rate
+or margin is confined to 0–100%, a per-period rate cannot fall below −100%
+(and a financing rate cannot be negative at all), and every other quantity —
+money, units, headcount, months — is non-negative. If NPV never crosses zero
+anywhere inside that domain the result is reported as infeasible ("this
+driver alone cannot move the decision across zero") rather than as a value
+that could never occur, such as a negative tax rate.
 
 ## Verdict synthesis (`src/engine/verdict.ts`)
 
@@ -253,12 +272,14 @@ swing — useful for deciding what to model carefully, but it can't say how
 much of the **combined**, everything-moving-at-once variance actually traces
 back to each driver. `varianceContribution(decision, npvSamples,
 inputsSamples)` computes the Pearson correlation between each driver's
-sampled value and the resulting NPV across the same trials, squares it, and
-normalizes so the shares sum to 1.
+sampled value — the discount rate included — and the resulting NPV across
+the same trials, squares it, and normalises so the shares sum to 1. The raw
+r² is reported next to the normalised share, so a reader can see how much
+of the spread a linear fit on each driver explains before normalisation.
 
 This is a stated approximation — not a full Sobol variance decomposition —
 but a more defensible one here than it would be generically: every driver in
-this engine is sampled independently (see "Known limitations" above), so
+this engine is sampled independently (see "Driver independence" above), so
 there's no cross-driver correlation to double-count, which is exactly the
 condition under which an r²-based decomposition is a reasonably literal
 answer to "how much of the variance does this explain," not just a proxy for
