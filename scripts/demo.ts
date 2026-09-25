@@ -60,7 +60,7 @@ for (const decision of manufacturerPersona.decisions) {
   }
 
   console.log("\n-- Audience-specific views --");
-  console.log(`[Executor]  ${operationalBrief(decision, verdict)}`);
+  console.log(`[Executor]  ${operationalBrief(decision, verdict, tornado[0].label)}`);
   const financial = financialDetailView(decision, p, varianceRows);
   console.log(
     `[CFO]       Tax rate (base case): ${financial.taxRateBaseCase !== null ? (financial.taxRateBaseCase * 100).toFixed(1) + "%" : "n/a"}  |  top variance driver: ${financial.topVarianceDrivers[0]?.label ?? "n/a"}`,

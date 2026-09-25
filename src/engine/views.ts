@@ -7,11 +7,9 @@ import type { VarianceContributionRow } from "./variance.ts";
  * The same simulation output means different things to different readers —
  * a GM wants a verdict, a CFO wants the assumptions behind the number, an
  * executor wants one operational instruction, and none of them want the
- * other two views cluttering theirs. This module doesn't build separate
- * screens (that's a UI/Phase-3 concern, not an engine one) — it defines the
- * three views as plain data/text derived from the same result, so a future
- * UI has a tested place to pull each one from rather than inventing the
- * split later.
+ * other two views cluttering theirs. This module defines the three views as
+ * plain data/text derived from the same result, so the UI has a tested
+ * place to pull each one from.
  */
 
 /** Finds the driver in this decision whose id represents its ramp/commissioning delay, if it has one — personas name this differently per decision. */
@@ -21,20 +19,33 @@ function findRampDriver(decision: Decision) {
 
 /**
  * The Decision-Executor's view: one instruction, not a financial model.
- * Deliberately omits NPV/percentiles entirely — burying the one actionable
- * fact inside a P90/P50/P10 table was the specific complaint this answers.
+ * Deliberately omits NPV/percentiles entirely — the one actionable fact
+ * should not be buried inside a P90/P50/P10 table.
+ *
+ * Only a Proceed verdict is an approval. A Marginal verdict is a coin flip,
+ * and telling the person who would place the equipment order or start
+ * hiring to "begin now" on a coin flip is exactly the instruction this view
+ * exists to avoid; it says what has to be resolved first instead.
  */
-export function operationalBrief(decision: Decision, verdict: VerdictResult): string {
-  const proceed = verdict.verdict !== "Reconsider";
-  if (!proceed) {
-    return `${decision.label}: NOT approved as modeled. ${verdict.rationale}`;
+export function operationalBrief(decision: Decision, verdict: VerdictResult, topDriverLabel?: string): string {
+  if (verdict.verdict === "Reconsider") {
+    return `${decision.label}: NOT approved as modelled. ${verdict.rationale}`;
   }
   const rampDriver = findRampDriver(decision);
-  if (!rampDriver) {
-    return `${decision.label}: approved (${verdict.verdict.toLowerCase()} case). No modeled ramp-up delay for this decision — plan to be at full output from day one.`;
+  const rampMonths = rampDriver ? baseCase(rampDriver.distribution) : null;
+
+  if (verdict.verdict === "Marginal") {
+    const resolveFirst = topDriverLabel
+      ? `Firm up "${topDriverLabel}" (the largest swing in the tornado ranking) with a quote, a signed order or a trial before committing.`
+      : "Firm up the top driver in the tornado ranking with a quote, a signed order or a trial before committing.";
+    const rampNote = rampMonths !== null ? ` If it is then approved, plan for ~${rampMonths.toFixed(1)} month(s) of ramp-up before full output.` : "";
+    return `${decision.label}: NOT YET approved — NPV is positive in only ${(verdict.probabilityPositive * 100).toFixed(0)}% of simulated outcomes. ${resolveFirst} Do not place orders or start hiring on this case as it stands.${rampNote}`;
   }
-  const rampMonths = baseCase(rampDriver.distribution);
-  return `${decision.label}: approved (${verdict.verdict.toLowerCase()} case). Plan for ~${rampMonths.toFixed(1)} month(s) of ramp-up before full output — begin hiring/ordering/scheduling now, not when the decision closes.`;
+
+  if (rampMonths === null) {
+    return `${decision.label}: approved (proceed case). No modelled ramp-up delay for this decision — plan to be at full output from day one.`;
+  }
+  return `${decision.label}: approved (proceed case). Plan for ~${rampMonths.toFixed(1)} month(s) of ramp-up before full output — begin hiring/ordering/scheduling now, not when the decision closes.`;
 }
 
 /**

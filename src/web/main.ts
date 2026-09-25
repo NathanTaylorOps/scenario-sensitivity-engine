@@ -262,7 +262,7 @@ function renderAll(): void {
   audienceExecutorEl.innerHTML = "";
   const executorP = document.createElement("p");
   executorP.className = "audience-text";
-  executorP.textContent = operationalBrief(decision, verdict);
+  executorP.textContent = operationalBrief(decision, verdict, tornado[0]?.label);
   audienceExecutorEl.appendChild(executorP);
 
   audienceCfoEl.innerHTML = "";

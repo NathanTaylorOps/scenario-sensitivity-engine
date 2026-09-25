@@ -845,6 +845,24 @@ test("operationalBrief states non-approval plainly when the verdict is Reconside
   assert.match(brief, /NOT approved/);
 });
 
+test("operationalBrief never tells the executor to begin ordering or hiring on a Marginal verdict", () => {
+  const decision = manufacturerPersona.decisions[0];
+  const verdict = decisionVerdict(0.55); // Marginal
+  const brief = operationalBrief(decision, verdict, "Machine/line capex");
+  assert.match(brief, /NOT YET approved/);
+  assert.match(brief, /Machine\/line capex/, "should name the driver to resolve first");
+  assert.doesNotMatch(brief, /begin hiring\/ordering/);
+  assert.doesNotMatch(brief, /: approved/);
+  assert.match(brief, /55%/);
+});
+
+test("operationalBrief approves only on Proceed", () => {
+  const decision = manufacturerPersona.decisions[0];
+  assert.match(operationalBrief(decision, decisionVerdict(0.8)), /: approved \(proceed case\)/);
+  assert.doesNotMatch(operationalBrief(decision, decisionVerdict(0.5)), /: approved/);
+  assert.doesNotMatch(operationalBrief(decision, decisionVerdict(0.2)), /: approved/);
+});
+
 test("financialDetailView surfaces the tax-rate base case and top variance drivers", () => {
   const decision = manufacturerPersona.decisions[0];
   const result = runMonteCarlo(decision, { iterations: 3000, seed: 6, captureInputs: true });
