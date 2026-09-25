@@ -165,7 +165,8 @@
       </section>
 
       <section id="financing-section" class="panel">
-        <h3 class="panel-title">Debt financing &amp; covenant check</h3>
+        <h3 class="panel-title">Debt financing: value (APV) &amp; covenant check</h3>
+        <p class="panel-subtitle">Financing is valued as adjusted present value: the unlevered NPV above plus the present value of the interest tax shield, discounted at the loan rate. The term defaults to the decision's horizon; a longer term leaves a balance that is repaid as a balloon in the final modelled year.</p>
         <div class="panel-row panel-row-wrap financing-inputs">
           <div class="field">
             <label class="field-label" for="ltv-input">Loan-to-value (%)</label>
@@ -177,7 +178,7 @@
           </div>
           <div class="field">
             <label class="field-label" for="term-input">Term (years)</label>
-            <input id="term-input" class="input" type="number" min="1" max="30" step="1" value="7" />
+            <input id="term-input" class="input" type="number" min="1" max="30" step="1" value="5" />
           </div>
         </div>
         <div id="financing-result" class="financing-result"></div>

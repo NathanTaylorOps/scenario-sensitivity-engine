@@ -315,6 +315,43 @@ actually sees is a Phase 3 (UI) concern, deliberately out of scope for a
 dependency-free engine module, but the split needed a tested home in the data
 layer before it could be a screen at all.
 
+## Debt financing: APV and the covenant check (`src/engine/financing.ts`)
+
+Any capex decision can be financed with a standard annuity loan sized as a
+fraction of that trial's own sampled outlay (a bigger simulated capex draw
+means a bigger loan, not a fixed number applied uniformly). Two questions
+are answered separately, because they are different questions:
+
+- **Value — adjusted present value.** The decision's unlevered NPV (operating
+  cash flows discounted at the firm's hurdle rate) plus the present value
+  of the interest tax shield, discounted at the loan rate because the
+  shield is only as certain as the debt itself. Financing changes the value
+  of a decision only through the tax deductibility of interest. Discounting
+  the levered equity cash flows at the unlevered hurdle rate instead would
+  let any loan cheaper than the hurdle rate manufacture value from nothing,
+  which is why that presentation is not used for value.
+- **Covenant — debt-service coverage.** For every loan year inside the model
+  horizon, after-tax operating cash flow divided by scheduled interest plus
+  principal; the figure reported is each trial's *worst* year, because a
+  covenant is breached by the worst year, not the average one, together with
+  the share of trials that stay above the lender's minimum (1.25x in the UI).
+
+A loan term longer than the decision's horizon leaves a balance outstanding
+when the model ends. That balance is repaid as a balloon in the final
+modelled year, so the equity cash flows are complete and a longer term
+cannot improve a decision simply by pushing repayments past the end of the
+calendar. The balloon is part of the equity cash flows but not of the
+coverage test, since in practice it is refinanced or settled from the
+asset's sale rather than met from one year's operating cash. A 0% loan is
+rejected rather than analysed: the all-equity case is the unfinanced
+decision itself, and an empty schedule would read as a vacuous "covenant
+met in 100% of trials".
+
+The interest tax shield is added as a linear correction (`interest × tax
+rate`) on top of cash flows that were already taxed without knowledge of
+the loan — exact when there is enough taxable income to use the deduction,
+and the same no-loss-carryforward simplification stated for `tax.ts`.
+
 ## Typo protection on driver ids (`src/engine/guardedInputs.ts`)
 
 Every driver id is a plain string, matched by convention between a driver's

@@ -9,7 +9,7 @@ import { varianceContribution } from "../engine/variance.ts";
 import { representativeCashFlows } from "../engine/scenarios.ts";
 import { compareDecisions, portfolioAffordability } from "../engine/portfolio.ts";
 import { operationalBrief, financialDetailView, riskBriefView } from "../engine/views.ts";
-import { runDscrAnalysis, LoanTermsError } from "../engine/financing.ts";
+import { runFinancingAnalysis, LoanTermsError } from "../engine/financing.ts";
 import { validatePersona, PersonaValidationError } from "../engine/validation.ts";
 import { compareDriverToBaseline, compareDecisionToBaseline } from "../engine/guardrails.ts";
 import {
@@ -133,6 +133,7 @@ function renderDecisionTabs(): void {
     button.addEventListener("click", () => {
       state.decision = decision;
       closeEditor();
+      resetFinancingDefaults(decision);
       renderDecisionTabs();
       renderAll();
     });
@@ -146,6 +147,7 @@ personaSelect.addEventListener("change", () => {
   state.persona = persona;
   state.decision = persona.decisions[0];
   closeEditor();
+  resetFinancingDefaults(state.decision);
   renderDecisionTabs();
   renderAll();
   renderComparisonAndPortfolio();
@@ -303,6 +305,19 @@ function renderAll(): void {
 
 // ---- Debt financing / DSCR ----
 
+/** The loan term defaults to the decision's horizon so the loan amortises inside the
+ * model by default; a longer term is allowed and leaves a balloon at the horizon. */
+function resetFinancingDefaults(decision: Decision): void {
+  termInput.value = String(decision.horizonYears);
+}
+
+function financingLine(text: string, muted = false): HTMLParagraphElement {
+  const p = document.createElement("p");
+  p.className = "audience-text" + (muted ? " audience-muted" : "");
+  p.textContent = text;
+  return p;
+}
+
 function renderFinancingSection(decision: Decision): void {
   const hasCapex = decision.drivers.some((d) => d.id === "capex");
   financingSection.style.display = hasCapex ? "" : "none";
@@ -315,15 +330,19 @@ function renderFinancingSection(decision: Decision): void {
     const termYears = Number(termInput.value);
     const covenantMinDscr = 1.25;
 
-    let dscr;
+    if (loanToValuePct === 0) {
+      financingResult.appendChild(
+        financingLine("0% loan-to-value is an all-equity purchase: there is no debt to service, and the unlevered figures above are already that case."),
+      );
+      return;
+    }
+
+    let analysis;
     try {
-      dscr = runDscrAnalysis(decision, { loanToValuePct, annualInterestRate, termYears }, covenantMinDscr, { iterations: ITERATIONS, seed: SEED });
+      analysis = runFinancingAnalysis(decision, { loanToValuePct, annualInterestRate, termYears }, covenantMinDscr, { iterations: ITERATIONS, seed: SEED });
     } catch (err) {
-      // Caught in review: invalid loan terms (a 0-year term, an out-of-range loan-to-value,
-      // a negative rate) used to fall through to the engine's empty-schedule case and get
-      // reported as a misleading "100% probability of meeting the covenant." Now they're
-      // rejected explicitly, and the UI shows the rejection instead of a plausible-looking
-      // number.
+      // Invalid loan terms (a 0-year term, an out-of-range loan-to-value, a negative rate)
+      // are rejected by the engine; show the rejection rather than a plausible-looking number.
       if (err instanceof LoanTermsError) {
         const errorEl = document.createElement("p");
         errorEl.className = "audience-text financing-error";
@@ -334,21 +353,32 @@ function renderFinancingSection(decision: Decision): void {
       throw err;
     }
 
-    const line1 = document.createElement("p");
-    line1.className = "audience-text";
-    line1.textContent = `Probability the worst year's DSCR stays above ${covenantMinDscr}x: ${(dscr.probabilityAboveCovenant * 100).toFixed(0)}%.`;
-    const line2 = document.createElement("p");
-    line2.className = "audience-text audience-muted";
-    const p90 = Number.isFinite(dscr.minimumDscrPercentiles.p90) ? dscr.minimumDscrPercentiles.p90.toFixed(2) : "n/a";
-    const p50 = Number.isFinite(dscr.minimumDscrPercentiles.p50) ? dscr.minimumDscrPercentiles.p50.toFixed(2) : "n/a";
-    const p10 = Number.isFinite(dscr.minimumDscrPercentiles.p10) ? dscr.minimumDscrPercentiles.p10.toFixed(2) : "n/a";
-    line2.textContent = `Worst-year DSCR across trials — P90: ${p90}x  P50: ${p50}x  P10: ${p10}x`;
-    const noteEl = document.createElement("p");
-    noteEl.className = "audience-text audience-muted";
-    noteEl.textContent = dscr.note;
-    financingResult.appendChild(line1);
-    financingResult.appendChild(line2);
-    financingResult.appendChild(noteEl);
+    const fmtDscr = (v: number) => (Number.isFinite(v) ? `${v.toFixed(2)}x` : "n/a");
+    const { unleveredNpvPercentiles: unlevered, taxShieldPvPercentiles: shield, apvPercentiles: apv, dscr } = analysis;
+
+    const valueHeading = document.createElement("h4");
+    valueHeading.className = "financing-subheading";
+    valueHeading.textContent = "Value: adjusted present value (APV)";
+    financingResult.appendChild(valueHeading);
+    financingResult.appendChild(
+      financingLine(
+        `Loan of ${formatCompactUsd(analysis.baseCasePrincipal)} at base-case capex. Unlevered NPV (P50): ${formatCompactUsd(unlevered.p50)}  +  PV of interest tax shield at the ${(annualInterestRate * 100).toFixed(1)}% loan rate (P50): ${formatCompactUsd(shield.p50)}  =  APV (P50): ${formatCompactUsd(apv.p50)}.`,
+      ),
+    );
+    financingResult.appendChild(
+      financingLine(`APV — P90: ${formatCompactUsd(apv.p90)}  P50: ${formatCompactUsd(apv.p50)}  P10: ${formatCompactUsd(apv.p10)}.  Probability APV > 0: ${(analysis.probabilityApvPositive * 100).toFixed(0)}%.`, true),
+    );
+    financingResult.appendChild(financingLine(analysis.note, true));
+
+    const covenantHeading = document.createElement("h4");
+    covenantHeading.className = "financing-subheading";
+    covenantHeading.textContent = `Covenant: debt-service coverage (lender minimum ${covenantMinDscr}x)`;
+    financingResult.appendChild(covenantHeading);
+    financingResult.appendChild(financingLine(`Probability the worst year's coverage stays above ${covenantMinDscr}x: ${(dscr.probabilityAboveCovenant * 100).toFixed(0)}%.`));
+    financingResult.appendChild(
+      financingLine(`Worst-year coverage across trials — P90: ${fmtDscr(dscr.minimumDscrPercentiles.p90)}  P50: ${fmtDscr(dscr.minimumDscrPercentiles.p50)}  P10: ${fmtDscr(dscr.minimumDscrPercentiles.p10)}`, true),
+    );
+    financingResult.appendChild(financingLine(dscr.note, true));
   };
 
   const debouncedCompute = debounce(compute, 300);
@@ -713,6 +743,7 @@ function selectPersonaAndDecision(personaId: string, decisionId: string): boolea
   state.persona = persona;
   state.decision = decision;
   personaSelect.value = persona.id;
+  resetFinancingDefaults(decision);
   renderDecisionTabs();
   return true;
 }
@@ -838,6 +869,7 @@ affordabilityInput.addEventListener("input", debounce(computeAffordability, 300)
 // ---- Boot ----
 
 populatePersonaSelect();
+resetFinancingDefaults(state.decision);
 renderDecisionTabs();
 renderAll();
 renderComparisonAndPortfolio();

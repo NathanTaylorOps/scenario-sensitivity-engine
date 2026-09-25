@@ -114,7 +114,7 @@ async function main() {
     assert.ok(!text.includes("100%"), `financing panel still shows a misleading 100% for an invalid term: "${text}"`);
   });
 
-  await page.fill("#term-input", "7");
+  await page.fill("#term-input", "5");
   await page.fill("#ltv-input", "150");
   await page.waitForTimeout(500);
   await check("an out-of-range loan-to-value is rejected", async () => {
@@ -122,12 +122,28 @@ async function main() {
     assert.ok(text.includes("Invalid loan terms"), `expected a validation error, got: "${text}"`);
   });
 
+  await page.fill("#ltv-input", "0");
+  await page.waitForTimeout(500);
+  await check("a 0% loan-to-value is explained as the all-equity case, not reported as a 100% covenant pass", async () => {
+    const text = (await page.textContent("#financing-result"))?.trim() ?? "";
+    assert.ok(text.includes("all-equity"), `expected the all-equity explanation, got: "${text}"`);
+    assert.ok(!text.includes("100%"), `0% LTV still shows a vacuous 100%: "${text}"`);
+  });
+
   await page.fill("#ltv-input", "70");
   await page.waitForTimeout(500);
-  await check("valid loan terms compute a normal DSCR result", async () => {
+  await check("valid loan terms compute an APV and a DSCR result", async () => {
     const text = (await page.textContent("#financing-result"))?.trim() ?? "";
     assert.ok(/\d+%/.test(text), `expected a percentage in the result, got: "${text}"`);
+    assert.ok(text.includes("APV"), `expected an adjusted-present-value line, got: "${text}"`);
+    assert.ok(text.includes("coverage"), `expected a coverage line, got: "${text}"`);
+    assert.ok(!text.includes("minimumDscrPercentiles"), "raw field names must not leak into the UI");
     assert.ok(!text.includes("Invalid loan terms"), `valid inputs still show a validation error: "${text}"`);
+  });
+
+  await check("the loan term defaults to the decision's horizon", async () => {
+    const term = await page.inputValue("#term-input");
+    assert.equal(term, "5");
   });
 
   console.log("Checking the assumption editor (Phase 1 driver customization)...");

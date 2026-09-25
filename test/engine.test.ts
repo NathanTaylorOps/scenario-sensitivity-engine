@@ -17,7 +17,7 @@ import { runStressScenario } from "../src/engine/stress.ts";
 import { runSequencedPortfolio, covenantCheck } from "../src/engine/sequence.ts";
 import { operationalBrief, financialDetailView, riskBriefView } from "../src/engine/views.ts";
 import { validatePersona, PersonaValidationError } from "../src/engine/validation.ts";
-import { amortizationSchedule, financeDecision, debtServiceCoverageRatio, runDscrAnalysis, validateLoanTerms, LoanTermsError } from "../src/engine/financing.ts";
+import { amortizationSchedule, debtScheduleForHorizon, financeDecision, debtServiceCoverageRatio, runDscrAnalysis, runFinancingAnalysis, validateLoanTerms, LoanTermsError } from "../src/engine/financing.ts";
 import type { Decision, Persona } from "../src/engine/types.ts";
 import { manufacturerPersona } from "../src/personas/manufacturer.ts";
 import { personas, findPersona, mineSiteServicesPersona } from "../src/personas/index.ts";
@@ -1046,19 +1046,19 @@ test("runDscrAnalysis: a much smaller loan clears the covenant far more often th
   );
 });
 
-// Regression tests for a bug caught while stress-testing the UI: invalid loan terms
-// (a 0-year term, an out-of-range loan-to-value, a negative rate) used to fall through
-// to the empty-schedule branch and get reported as a misleading "100% probability of
-// meeting the covenant" instead of being rejected. validateLoanTerms now catches these
-// explicitly, and every LoanTerms-consuming entry point calls it.
+// Loan-terms validation: a 0-year term, a 0% or out-of-range loan-to-value, or a
+// negative rate would otherwise fall through to an empty schedule and read as a
+// vacuous "100% probability of meeting the covenant". Every LoanTerms-consuming
+// entry point validates first.
 
 test("validateLoanTerms: accepts an ordinary, fully-specified loan", () => {
   assert.doesNotThrow(() => validateLoanTerms({ loanToValuePct: 0.7, annualInterestRate: 0.085, termYears: 7 }));
 });
 
-test("validateLoanTerms: accepts loanToValuePct of 0 (all-equity, no debt) regardless of term", () => {
-  assert.doesNotThrow(() => validateLoanTerms({ loanToValuePct: 0, annualInterestRate: 0.085, termYears: 0 }));
-  assert.doesNotThrow(() => validateLoanTerms({ loanToValuePct: 0, annualInterestRate: 0.085, termYears: 7 }));
+test("validateLoanTerms: rejects a 0% loan-to-value (no loan to analyse) instead of reporting a vacuous 100% covenant pass", () => {
+  assert.throws(() => validateLoanTerms({ loanToValuePct: 0, annualInterestRate: 0.085, termYears: 7 }), /no loan to analyse/);
+  const capexDecision = manufacturerPersona.decisions[0];
+  assert.throws(() => runDscrAnalysis(capexDecision, { loanToValuePct: 0, annualInterestRate: 0.085, termYears: 7 }, 1.25, { iterations: 100, seed: 1 }), LoanTermsError);
 });
 
 test("validateLoanTerms: rejects a nonzero loan-to-value with a 0-year term (debt that is never repaid)", () => {
@@ -1084,8 +1084,6 @@ test("validateLoanTerms: rejects non-finite values (NaN from a cleared or invali
 
 test("runDscrAnalysis: rejects invalid loan terms instead of silently reporting 100% covenant coverage", () => {
   const capexDecision = manufacturerPersona.decisions[0];
-  // Before the fix, each of these produced probabilityAboveCovenant === 1 (a misleadingly
-  // "100% safe" result) instead of an error.
   assert.throws(
     () => runDscrAnalysis(capexDecision, { loanToValuePct: 0.7, annualInterestRate: 0.085, termYears: 0 }, 1.25, { iterations: 500, seed: 1 }),
     LoanTermsError,
@@ -1099,6 +1097,98 @@ test("runDscrAnalysis: rejects invalid loan terms instead of silently reporting 
 test("financeDecision: rejects invalid loan terms instead of silently modeling debt that is never repaid", () => {
   const capexDecision = manufacturerPersona.decisions[0];
   assert.throws(() => financeDecision(capexDecision, { loanToValuePct: 0.7, annualInterestRate: 0.085, termYears: 0 }), LoanTermsError);
+});
+
+// --- Balloon at the horizon, and APV ---
+
+test("debtScheduleForHorizon: a term longer than the horizon repays the outstanding balance as a balloon in the final modelled year", () => {
+  const full = amortizationSchedule(100000, 0.08, 10);
+  const horizon = debtScheduleForHorizon(100000, 0.08, 10, 5);
+  assert.equal(horizon.length, 5);
+  const balloon = horizon[4].balloonPayment;
+  assert.ok(Math.abs(balloon - full[4].remainingBalance) < 1e-6, "the balloon must equal the balance still owing after the year-5 payment");
+  assert.ok(balloon > 0);
+  assert.equal(horizon[4].remainingBalance, 0);
+  assert.ok(Math.abs(horizon[4].totalDebtService - (full[4].totalDebtService + balloon)) < 1e-6);
+  const totalPrincipalRepaid = horizon.reduce((sum, e) => sum + e.principalPayment + e.balloonPayment, 0);
+  assert.ok(Math.abs(totalPrincipalRepaid - 100000) < 1e-6, "every dollar borrowed must be repaid inside the horizon");
+});
+
+test("debtScheduleForHorizon: a term inside the horizon is unchanged and carries no balloon", () => {
+  const schedule = debtScheduleForHorizon(100000, 0.08, 5, 5);
+  assert.deepEqual(schedule, amortizationSchedule(100000, 0.08, 5));
+  assert.ok(schedule.every((e) => e.balloonPayment === 0));
+  const shorter = debtScheduleForHorizon(100000, 0.08, 3, 5);
+  assert.equal(shorter.length, 3);
+});
+
+test("financeDecision: a longer loan term cannot lift value by pushing repayments past the horizon", () => {
+  // Equity cash flows across the horizon must repay the full principal whatever the term,
+  // so the undiscounted sum of debt service over the horizon is identical for 5, 7 and 10 years
+  // apart from the interest actually paid.
+  const capexDecision = manufacturerPersona.decisions[0];
+  const inputs = baseCaseInputs(capexDecision);
+  const unfinanced = capexDecision.cashFlows(inputs, 0);
+  const principal = -unfinanced[0] * 0.7;
+  const taxRate = inputs.taxRate;
+  for (const termYears of [5, 7, 10]) {
+    const financed = financeDecision(capexDecision, { loanToValuePct: 0.7, annualInterestRate: 0.085, termYears }).cashFlows(inputs, 0);
+    const schedule = debtScheduleForHorizon(principal, 0.085, termYears, capexDecision.horizonYears);
+    const interestPaid = schedule.reduce((sum, e) => sum + e.interestPayment, 0);
+    const equityTotal = financed.reduce((sum, v) => sum + v, 0);
+    const unfinancedTotal = unfinanced.reduce((sum, v) => sum + v, 0);
+    // Sum of equity flows = sum of unfinanced flows - after-tax interest (principal nets to zero: borrowed at t0, repaid within the horizon).
+    assert.ok(Math.abs(equityTotal - (unfinancedTotal - interestPaid * (1 - taxRate))) < 1e-6, `term ${termYears}: principal was not fully repaid inside the horizon`);
+  }
+});
+
+test("runFinancingAnalysis: APV = unlevered NPV + PV of interest tax shield, and cheap debt does not inflate the operating case", () => {
+  const capexDecision = manufacturerPersona.decisions[0];
+  const options = { iterations: 2000, seed: 40 };
+  const analysis = runFinancingAnalysis(capexDecision, { loanToValuePct: 0.7, annualInterestRate: 0.085, termYears: 5 }, 1.25, options);
+  const unlevered = percentiles(runMonteCarlo(capexDecision, options).npvSamples);
+  assert.ok(Math.abs(analysis.unleveredNpvPercentiles.p50 - unlevered.p50) < 1e-6, "the unlevered NPV must be the decision's own NPV, untouched by financing");
+  assert.ok(analysis.taxShieldPvPercentiles.p50 > 0, "an interest-bearing loan with a positive tax rate has a positive tax shield");
+  assert.ok(Math.abs(analysis.apvPercentiles.mean - (analysis.unleveredNpvPercentiles.mean + analysis.taxShieldPvPercentiles.mean)) < 1e-6);
+
+  // A near-free loan (0.1%) has almost no interest and so almost no tax shield: it must not add value.
+  const cheap = runFinancingAnalysis(capexDecision, { loanToValuePct: 1, annualInterestRate: 0.001, termYears: 5 }, 1.25, options);
+  assert.ok(cheap.taxShieldPvPercentiles.p50 < analysis.taxShieldPvPercentiles.p50);
+  assert.ok(Math.abs(cheap.apvPercentiles.p50 - cheap.unleveredNpvPercentiles.p50) < 2000, "near-zero interest means near-zero financing value, not a windfall");
+});
+
+test("runFinancingAnalysis: the tax shield PV matches a hand calculation at base case for a constant-capex decision", () => {
+  const decision: Decision = {
+    id: "fixed-capex",
+    label: "Fixed capex",
+    description: "for APV tests",
+    horizonYears: 2,
+    discountRate: { id: "discountRate", label: "rate", unit: "%/yr", category: "financing", distribution: { kind: "constant", value: 0.1 }, rationale: "test" },
+    drivers: [
+      { id: "capex", label: "Capex", unit: "AUD", category: "capex", distribution: { kind: "constant", value: 100000 }, rationale: "test" },
+      { id: "taxRate", label: "Tax", unit: "%", category: "financing", distribution: { kind: "constant", value: 0.25 }, rationale: "test" },
+    ],
+    cashFlows(inputs) {
+      return [-inputs.capex, 60000, 60000];
+    },
+  };
+  const analysis = runFinancingAnalysis(decision, { loanToValuePct: 0.5, annualInterestRate: 0.1, termYears: 2 }, 1.25, { iterations: 50, seed: 1 });
+  // Principal 50,000 at 10% over 2 years: payment 28,809.52; interest y1 5,000, y2 2,619.05.
+  const expectedShield = (5000 * 0.25) / 1.1 + (2619.047619 * 0.25) / 1.21;
+  assert.ok(Math.abs(analysis.taxShieldPvPercentiles.p50 - expectedShield) < 1, `expected ~${expectedShield}, got ${analysis.taxShieldPvPercentiles.p50}`);
+  assert.equal(analysis.baseCasePrincipal, 50000);
+  assert.equal(analysis.baseCaseBalloonAtHorizon, 0);
+  // Worst-year DSCR: 60,000 / 28,809.52 in both years.
+  assert.ok(Math.abs(analysis.dscr.minimumDscrPercentiles.p50 - 60000 / 28809.52) < 1e-3);
+});
+
+test("runFinancingAnalysis: DSCR is evaluated for every loan year inside the horizon and reports the balloon separately", () => {
+  const capexDecision = manufacturerPersona.decisions[0];
+  const longTerm = runFinancingAnalysis(capexDecision, { loanToValuePct: 0.7, annualInterestRate: 0.085, termYears: 10 }, 1.25, { iterations: 500, seed: 3 });
+  assert.ok(longTerm.baseCaseBalloonAtHorizon > 0, "a 10-year loan on a 5-year decision leaves a balance to repay at the horizon");
+  assert.match(longTerm.note, /balance still owing at year 5/);
+  assert.ok(Number.isFinite(longTerm.dscr.minimumDscrPercentiles.p50));
+  assert.doesNotMatch(longTerm.dscr.note, /minimumDscrPercentiles/, "the note must be plain English, not a field name");
 });
 
 // --- Second persona (heavy-machinery repair / mine-site logistics) ---

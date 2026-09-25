@@ -497,6 +497,17 @@ body {
   white-space: pre-line;
 }
 
+.financing-subheading {
+  margin: 12px 0 6px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.financing-subheading:first-child {
+  margin-top: 0;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
