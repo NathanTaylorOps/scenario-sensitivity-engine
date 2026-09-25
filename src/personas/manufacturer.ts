@@ -14,9 +14,9 @@ function taxRateDriver(): Driver {
     label: "Effective combined tax rate",
     unit: "%",
     category: "financing",
-    distribution: { kind: "pert", min: 0.21, mode: 0.26, max: 0.3 },
+    distribution: { kind: "pert", min: 0.25, mode: 0.27, max: 0.3 },
     rationale:
-      "Combined federal + state effective rate for a small/mid-size manufacturer; modeled as uncertain rather than fixed since state apportionment, credits, and entity structure vary.",
+      "Australian company tax: 25% for a base-rate entity (aggregated turnover under A$50m and no more than 80% passive income, ATO), 30% otherwise. Modeled as uncertain rather than fixed at 25% since payroll tax, R&D-offset timing, and a bad year tipping the business over the passive-income test can push the effective rate up.",
   };
 }
 
@@ -25,9 +25,10 @@ const MACRO_DEMAND_SENSITIVITY = 0.15;
 
 /**
  * Persona A: a mid-size specialty manufacturer / production workshop.
- * Figures grounded in the benchmark data reference (BLS OES 51-9161,
- * equipment dealer listings, small-business capital budgeting norms) —
- * not round, arbitrary numbers. See docs/BENCHMARKS.md for sources.
+ * Figures grounded in the benchmark data reference (Australian job-board
+ * wage data for a CNC operator, Australian equipment dealer listings,
+ * small-business capital budgeting norms) — not round, arbitrary numbers.
+ * Dollar figures are in AUD. See docs/BENCHMARKS.md for sources.
  */
 
 const discountRate: Driver = {
@@ -37,7 +38,7 @@ const discountRate: Driver = {
   category: "financing",
   distribution: { kind: "pert", min: 0.08, mode: 0.12, max: 0.18 },
   rationale:
-    "Small-business hurdle rates commonly run 10-15%, with 8% a conservative floor and 15-20% for riskier capex. Treated as an uncertain input, not fixed, since it's often a top sensitivity driver on its own.",
+    "Australian small-business hurdle rates typically sit a few points above the RBA cash rate plus a small-business risk premium — commonly 10-15% in practice, with 8% a conservative floor and 15-18% for riskier capex. Treated as an uncertain input, not fixed, since it's often a top sensitivity driver on its own.",
 };
 
 /** Decision A1: buy a second CNC machine / production line. */
@@ -52,10 +53,10 @@ const capexDecision: Decision = {
     {
       id: "capex",
       label: "Machine/line capex",
-      unit: "USD",
+      unit: "AUD",
       category: "capex",
-      distribution: { kind: "pert", min: 150000, mode: 250000, max: 500000 },
-      rationale: "Mid-size new CNC machining center typical range, per equipment dealer listings.",
+      distribution: { kind: "pert", min: 210000, mode: 350000, max: 700000 },
+      rationale: "Mid-size new CNC machining center typical range in AUD, per Australian equipment dealer listings (Machines4U, Machinio) — higher than the US market for the same class of machine given freight and duty on imported machine tools.",
     },
     {
       id: "incrementalUnitsPerYear",
@@ -68,17 +69,17 @@ const capexDecision: Decision = {
     {
       id: "contributionMarginPerUnit",
       label: "Contribution margin per unit",
-      unit: "USD/unit",
+      unit: "AUD/unit",
       category: "revenue",
-      distribution: { kind: "pert", min: 8, mode: 14, max: 22 },
-      rationale: "Implied by a 25-40% gross margin range on typical custom/job-shop unit pricing.",
+      distribution: { kind: "pert", min: 11, mode: 20, max: 30 },
+      rationale: "Implied by a 25-40% gross margin range on typical custom/job-shop unit pricing, in AUD.",
     },
     {
       id: "annualMaintenanceCost",
       label: "Annual maintenance & service cost",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "cost",
-      distribution: { kind: "pert", min: 8000, mode: 15000, max: 28000 },
+      distribution: { kind: "pert", min: 11000, mode: 21000, max: 39000 },
       rationale:
         "Machine-only cost: service contracts, parts, and consumables, roughly 5-8% of capex/yr per typical CNC service-contract benchmarks. Deliberately excludes any operator labor — the earlier version bundled an implied operator wage into this figure, which double-counted against the second-shift decision's headcount cost whenever both decisions are evaluated together (see src/engine/sequence.ts). Operator labor for running this line during EXISTING shift hours is assumed absorbed by current staff and isn't modeled as an incremental cost anywhere; only the second-shift decision's headcount is new labor.",
     },
@@ -129,34 +130,34 @@ const contractDecision: Decision = {
     {
       id: "annualRevenue",
       label: "Contract annual revenue",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "revenue",
-      distribution: { kind: "pert", min: 250000, mode: 600000, max: 950000 },
-      rationale: "Scaled to a mid-size shop's typical large-account size; downside widened to reflect real volume/renewal risk over a multi-year single-customer contract.",
+      distribution: { kind: "pert", min: 350000, mode: 840000, max: 1330000 },
+      rationale: "Scaled to a mid-size shop's typical large-account size in AUD; downside widened to reflect real volume/renewal risk over a multi-year single-customer contract.",
     },
     {
       id: "grossMarginPct",
       label: "Gross margin",
       unit: "%",
       category: "revenue",
-      distribution: { kind: "pert", min: 0.1, mode: 0.28, max: 0.4 },
-      rationale: "25-40% typical gross margin range for small/mid manufacturers; wider downside to reflect commodity-pricing risk on a large single-customer contract.",
+      distribution: { kind: "pert", min: 0.05, mode: 0.28, max: 0.4 },
+      rationale: "25-40% typical gross margin range for small/mid manufacturers; floor lowered to reflect the thin, aggressive pricing a shop often accepts to win a large single-customer account.",
     },
     {
       id: "inputCostInflationPct",
       label: "Annual input-cost inflation",
       unit: "%/yr",
       category: "cost",
-      distribution: { kind: "lognormal", median: 0.03, sigma: 0.5 },
-      rationale: "Cost inflation is right-skewed (occasional cost shocks) — lognormal avoids symmetric downside that doesn't exist in practice.",
+      distribution: { kind: "lognormal", median: 0.03, sigma: 0.75 },
+      rationale: "Cost inflation is right-skewed (occasional cost shocks) — lognormal avoids symmetric downside that doesn't exist in practice; sigma widened so the tail can represent a real commodity-input shock (comparable to 2021-2022 material cost spikes), not just routine inflation.",
     },
     {
       id: "onboardingCost",
       label: "One-time onboarding/tooling cost",
-      unit: "USD",
+      unit: "AUD",
       category: "capex",
-      distribution: { kind: "pert", min: 20000, mode: 45000, max: 90000 },
-      rationale: "New-customer tooling and qualification costs, expert three-point estimate.",
+      distribution: { kind: "pert", min: 28000, mode: 63000, max: 126000 },
+      rationale: "New-customer tooling and qualification costs, in AUD, expert three-point estimate.",
     },
     taxRateDriver(),
   ],
@@ -167,7 +168,9 @@ const contractDecision: Decision = {
     let margin = inputs.grossMarginPct;
     for (let year = 1; year <= 3; year++) {
       pretax.push(effectiveAnnualRevenue * margin);
-      margin = margin - inputs.inputCostInflationPct * margin * 0.5; // cost inflation erodes margin
+      // Contract price is fixed, so inflation lands on the cost base alone: cost = (1 - margin) x revenue,
+      // and after a year of inflation the margin is 1 - (1 - margin)(1 + i) = margin - (1 - margin) x i.
+      margin = margin - (1 - margin) * inputs.inputCostInflationPct;
     }
     return afterTaxCashFlows(pretax, { capex: 0, usefulLifeYears: 0, taxRate: inputs.taxRate });
   },
@@ -193,10 +196,10 @@ const headcountDecision: Decision = {
     {
       id: "annualWagePerWorker",
       label: "Annual wage per worker",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "cost",
-      distribution: { kind: "pert", min: 37000, mode: 47000, max: 58000 },
-      rationale: "BLS OES 51-9161 CNC operator wage range.",
+      distribution: { kind: "pert", min: 65000, mode: 80000, max: 105000 },
+      rationale: "Australian CNC operator wage range — Seek and Indeed both report roughly A$65k-A$105k/yr depending on experience and location (Sydney and Gold Coast run highest), median around A$80k.",
     },
     {
       id: "demandRampUnitsPerYear",
@@ -209,7 +212,7 @@ const headcountDecision: Decision = {
     {
       id: "contributionMarginPerUnit",
       label: "Contribution margin per unit",
-      unit: "USD/unit",
+      unit: "AUD/unit",
       category: "revenue",
       distribution: { kind: "pert", min: 8, mode: 14, max: 22 },
       rationale: "Same basis as the capex decision's margin driver.",

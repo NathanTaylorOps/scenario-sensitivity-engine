@@ -1305,3 +1305,44 @@ test("PersonaValidationError message lists every issue found, not just the first
     assert.ok(err.issues.length >= 3, `expected at least 3 issues (negative capex, empty rationale, bad percent range), got ${err.issues.length}`);
   }
 });
+
+// --- Contract margin erosion ---
+
+test("contract decisions erode margin by (1 - margin) x inflation: inflation lands on the cost base, not on the margin", () => {
+  for (const [persona, inflationId] of [
+    [manufacturerPersona, "inputCostInflationPct"],
+    [mineSiteServicesPersona, "fuelCostInflationPct"],
+  ] as const) {
+    const contract = persona.decisions[1];
+    const inputs = baseCaseInputs(contract);
+    inputs.taxRate = 0; // isolate the pretax margin path
+    inputs.onboardingCost = 0;
+    inputs[inflationId] = 0.1;
+    inputs.grossMarginPct = 0.3;
+    inputs.annualRevenue = 1_000_000;
+    const flows = contract.cashFlows(inputs, 0);
+    // Year 1 at the contracted margin; cost base 0.7 inflates 10% a year: margins 0.30, 0.23, 0.153.
+    assert.ok(Math.abs(flows[1] - 300_000) < 1e-6, `${persona.id}: year 1 should be at the contracted margin`);
+    assert.ok(Math.abs(flows[2] - 230_000) < 1e-6, `${persona.id}: year 2 margin should be 0.30 - 0.70 x 0.10 = 0.23, got ${flows[2] / 1e6}`);
+    assert.ok(Math.abs(flows[3] - 153_000) < 1e-6, `${persona.id}: year 3 margin should be 0.23 - 0.77 x 0.10 = 0.153, got ${flows[3] / 1e6}`);
+  }
+});
+
+test("a fixed-price contract can go loss-making under a sustained cost shock, and the model lets it", () => {
+  const contract = manufacturerPersona.decisions[1];
+  const inputs = baseCaseInputs(contract);
+  inputs.taxRate = 0;
+  inputs.grossMarginPct = 0.1;
+  inputs.inputCostInflationPct = 0.2;
+  const flows = contract.cashFlows(inputs, 0);
+  assert.ok(flows[3] < 0, "a 10% margin with 20%/yr cost inflation on a fixed price is under water by year 3");
+});
+
+test("neither persona's contract decision is a certainty: P(NPV > 0) sits strictly below 100%", () => {
+  for (const persona of personas) {
+    const contract = persona.decisions[1];
+    const result = runMonteCarlo(contract, { iterations: 20000, seed: 42 });
+    const probability = probabilityExceeds(result.npvSamples, 0);
+    assert.ok(probability < 0.995, `${persona.id}: a multi-year single-customer contract modelled as ${(probability * 100).toFixed(1)}% certain is not a realistic input set`);
+  }
+});

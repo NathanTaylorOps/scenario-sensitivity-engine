@@ -10,9 +10,10 @@ import { validatePersona } from "../engine/validation.ts";
  * building the engine driver-based in the first place.
  *
  * Figures grounded in real, checkable sources (see docs/BENCHMARKS.md):
- * BLS OOH heavy vehicle/mobile equipment technician wages, heavy-equipment
- * dealer/auction listings for a fitted-out field-service truck, and
- * trucking/logistics industry margin benchmarks.
+ * Australian FIFO heavy-vehicle/mobile-equipment mechanic wage data,
+ * heavy-equipment dealer/auction listings for a fitted-out field-service
+ * truck, and trucking/logistics industry margin benchmarks. Dollar figures
+ * are in AUD.
  */
 
 function taxRateDriver(): Driver {
@@ -21,9 +22,9 @@ function taxRateDriver(): Driver {
     label: "Effective combined tax rate",
     unit: "%",
     category: "financing",
-    distribution: { kind: "pert", min: 0.21, mode: 0.26, max: 0.3 },
+    distribution: { kind: "pert", min: 0.25, mode: 0.27, max: 0.3 },
     rationale:
-      "Combined federal + state effective rate for a small/mid-size services business; modeled as uncertain rather than fixed since state apportionment, credits, and entity structure vary.",
+      "Australian company tax: 25% for a base-rate entity (aggregated turnover under A$50m and no more than 80% passive income, ATO), 30% otherwise. Modeled as uncertain rather than fixed at 25% since payroll tax and a bad year tipping the business over the passive-income test can push the effective rate up.",
   };
 }
 
@@ -44,7 +45,7 @@ const discountRate: Driver = {
   category: "financing",
   distribution: { kind: "pert", min: 0.1, mode: 0.15, max: 0.22 },
   rationale:
-    "Set above the manufacturer persona's 8-18% range: remote/mine-services businesses carry a risk premium over general small-business hurdle rates, given commodity-cycle exposure and single-site-access dependency.",
+    "Set above the manufacturer persona's 8-18% Australian small-business range: remote/mine-services businesses carry a risk premium over general small-business hurdle rates, given commodity-cycle exposure and single-site-access dependency.",
 };
 
 /** Decision B1: add a second mobile field-service truck (crane, welder, generator) for mine-site call-outs. */
@@ -59,10 +60,10 @@ const truckDecision: Decision = {
     {
       id: "capex",
       label: "Truck/crane/tooling capex",
-      unit: "USD",
+      unit: "AUD",
       category: "capex",
-      distribution: { kind: "pert", min: 180000, mode: 280000, max: 450000 },
-      rationale: "Fully equipped mobile mechanic/field-service truck (crane, welder, generator, tooling) for remote heavy-equipment repair, per heavy-equipment dealer and auction listings (Ritchie Bros., TruckPaper).",
+      distribution: { kind: "pert", min: 252000, mode: 392000, max: 630000 },
+      rationale: "Fully equipped mobile mechanic/field-service truck (crane, welder, generator, tooling) for remote heavy-equipment repair, in AUD, per heavy-equipment dealer and auction listings — higher than the US market given freight, duty, and a thinner secondary market for fitted-out service trucks in Australia.",
     },
     {
       id: "incrementalCallOutsPerYear",
@@ -76,18 +77,18 @@ const truckDecision: Decision = {
     {
       id: "contributionMarginPerCallOut",
       label: "Contribution margin per call-out",
-      unit: "USD/call-out",
+      unit: "AUD/call-out",
       category: "revenue",
-      distribution: { kind: "pert", min: 600, mode: 1100, max: 1800 },
+      distribution: { kind: "pert", min: 840, mode: 1540, max: 2520 },
       rationale:
-        "Higher per-job margin than a factory job precisely because it prices in the remote/hours-away day-rate premium — fewer jobs per year at a materially higher margin each, not a favorable assumption stacked on top of high volume. Implied by day-rate field-service billing practices for remote heavy-equipment repair.",
+        "Higher per-job margin than a factory job precisely because it prices in the remote/hours-away day-rate premium — fewer jobs per year at a materially higher margin each, not a favorable assumption stacked on top of high volume. Implied by day-rate field-service billing practices for remote heavy-equipment repair, in AUD.",
     },
     {
       id: "annualMaintenanceCost",
       label: "Annual truck/crane/tooling maintenance & service cost",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "cost",
-      distribution: { kind: "pert", min: 15000, mode: 28000, max: 45000 },
+      distribution: { kind: "pert", min: 21000, mode: 39000, max: 63000 },
       rationale:
         "Machine-only cost: truck, crane, and tooling service contracts, parts, and consumables, roughly 6-9% of capex/yr for a heavier-duty fitted vehicle than the manufacturer persona's CNC line. Deliberately excludes operator labor — see the second-crew headcount decision's own rationale for why these two decisions can be run together without double-counting a shared mechanic's wage.",
     },
@@ -138,34 +139,34 @@ const logisticsContractDecision: Decision = {
     {
       id: "annualRevenue",
       label: "Contract annual revenue",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "revenue",
-      distribution: { kind: "pert", min: 400000, mode: 850000, max: 1400000 },
-      rationale: "Scaled to a mid-size heavy-equipment service business's typical large mine-site account; downside widened to reflect real volume/renewal risk over a multi-year single-site contract.",
+      distribution: { kind: "pert", min: 560000, mode: 1190000, max: 1960000 },
+      rationale: "Scaled to a mid-size heavy-equipment service business's typical large mine-site account, in AUD; downside widened to reflect real volume/renewal risk over a multi-year single-site contract.",
     },
     {
       id: "grossMarginPct",
       label: "Gross margin",
       unit: "%",
       category: "revenue",
-      distribution: { kind: "pert", min: 0.15, mode: 0.32, max: 0.45 },
-      rationale: "30-45% typical trucking/logistics gross margin range; downside widened for fuel-price and single-customer renewal risk specific to a remote mine-site contract.",
+      distribution: { kind: "pert", min: 0.08, mode: 0.32, max: 0.45 },
+      rationale: "30-45% typical trucking/logistics gross margin range; floor lowered to reflect the thin margin a haulier often accepts to win a large single-site contract, on top of fuel-price and renewal risk.",
     },
     {
       id: "fuelCostInflationPct",
       label: "Annual fuel-cost inflation",
       unit: "%/yr",
       category: "cost",
-      distribution: { kind: "lognormal", median: 0.04, sigma: 0.55 },
-      rationale: "Diesel/fuel cost inflation is right-skewed (occasional price shocks) and erodes haulage margin more directly than a general input-cost driver, given fuel's outsized share of logistics cost. Lognormal avoids a symmetric downside that doesn't exist in practice.",
+      distribution: { kind: "lognormal", median: 0.04, sigma: 0.8 },
+      rationale: "Diesel/fuel cost inflation is right-skewed (occasional price shocks) and erodes haulage margin more directly than a general input-cost driver, given fuel's outsized share of logistics cost. Lognormal avoids a symmetric downside that doesn't exist in practice; sigma widened so the tail can represent a real diesel-price shock (comparable to 2022 fuel spikes), not just routine inflation.",
     },
     {
       id: "onboardingCost",
       label: "Site-access qualification & route setup cost",
-      unit: "USD",
+      unit: "AUD",
       category: "capex",
-      distribution: { kind: "pert", min: 35000, mode: 70000, max: 130000 },
-      rationale: "Safety induction/certification for remote mine-site access, plus route and equipment prep — higher than a factory-floor onboarding given mine-site safety and access requirements.",
+      distribution: { kind: "pert", min: 49000, mode: 98000, max: 182000 },
+      rationale: "Safety induction/certification for remote mine-site access, plus route and equipment prep, in AUD — higher than a factory-floor onboarding given mine-site safety and access requirements.",
     },
     taxRateDriver(),
   ],
@@ -176,7 +177,9 @@ const logisticsContractDecision: Decision = {
     let margin = inputs.grossMarginPct;
     for (let year = 1; year <= 3; year++) {
       pretax.push(effectiveAnnualRevenue * margin);
-      margin = margin - inputs.fuelCostInflationPct * margin * 0.5; // fuel-cost inflation erodes margin
+      // Contract price is fixed, so inflation lands on the cost base alone: cost = (1 - margin) x revenue,
+      // and after a year of inflation the margin is 1 - (1 - margin)(1 + i) = margin - (1 - margin) x i.
+      margin = margin - (1 - margin) * inputs.fuelCostInflationPct;
     }
     return afterTaxCashFlows(pretax, { capex: 0, usefulLifeYears: 0, taxRate: inputs.taxRate });
   },
@@ -202,10 +205,10 @@ const crewDecision: Decision = {
     {
       id: "annualWagePerWorker",
       label: "Annual wage per worker",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "cost",
-      distribution: { kind: "pert", min: 45460, mode: 63850, max: 93450 },
-      rationale: "BLS heavy vehicle & mobile equipment service technician wage — 10th percentile / median / 90th percentile, May 2025 (bls.gov/ooh).",
+      distribution: { kind: "pert", min: 130000, mode: 160000, max: 200000 },
+      rationale: "FIFO heavy diesel / mobile plant mechanic total package on a remote Australian mine site — trades roles on-site commonly run A$130k-A$200k+/yr depending on roster, site enterprise agreement, and penalty/loading rates for night and weekend swings.",
     },
     {
       id: "demandRampCallOutsPerYear",
@@ -218,10 +221,10 @@ const crewDecision: Decision = {
     {
       id: "contributionMarginPerCallOut",
       label: "Contribution margin per call-out",
-      unit: "USD/call-out",
+      unit: "AUD/call-out",
       category: "revenue",
-      distribution: { kind: "pert", min: 450, mode: 850, max: 1400 },
-      rationale: "Same basis as the truck decision's margin driver.",
+      distribution: { kind: "pert", min: 630, mode: 1190, max: 1960 },
+      rationale: "Same basis as the truck decision's margin driver, in AUD.",
     },
     {
       id: "hiringRampMonths",
