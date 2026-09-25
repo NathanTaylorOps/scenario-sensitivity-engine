@@ -21,9 +21,9 @@ process is the differentiated thing, not a specific vendor's API call.
 ## Why this is worth doing at all
 
 Hand-authoring the manufacturer persona and the mine-site-services persona
-both took real research time — finding a BLS occupation code, checking a
-dealer-listing price range, reasoning through what an unfamiliar driver like
-"resale value net of book value" should look like. An LLM can produce a
+both took real research time — finding an Australian wage benchmark for an
+occupation, checking a dealer-listing price range, reasoning through what an
+unfamiliar driver like "resale value net of book value" should look like. An LLM can produce a
 strong first draft of that research-and-numbers step in seconds. It should
 never be trusted to produce a *final* driver range unsupervised — it can
 hallucinate a benchmark, misjudge a unit, or silently assume a mode that's
@@ -51,8 +51,8 @@ steps in this workflow, not optional ones.
    mistake this validator was added to catch (see `docs/METHODOLOGY.md`).
 
 4. **A human reviews every number, not just the shape.** The validator
-   proves the config is *well-formed*; it says nothing about whether $850,000
-   is a plausible contract size for this business, or whether an LLM invented
+   proves the config is *well-formed*; it says nothing about whether
+   A$1,190,000 is a plausible contract size for this business, or whether an LLM invented
    a benchmark rather than citing a real one. Every rationale string must
    name a checkable source or say plainly that it's a reasoned estimate (the
    same bar `docs/BENCHMARKS.md` holds itself to) — an LLM-drafted rationale

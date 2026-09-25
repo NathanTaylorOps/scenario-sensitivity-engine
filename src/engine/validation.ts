@@ -69,7 +69,7 @@ function validateDistribution(dist: Distribution): string[] {
  * mistake (a rate entered as a whole-number percent, a swapped sign).
  * Driven off the driver's own declared `unit` field rather than pattern-
  * matching its id/label — a driver named "contributionMarginPerUnit" reads
- * like a percentage by name but is a USD/unit figure by its actual `unit`,
+ * like a percentage by name but is an AUD/unit figure by its actual `unit`,
  * so the unit field is the reliable signal, not the name.
  */
 function validateDriverSanity(driverId: string, unit: string, category: string, dist: Distribution): string[] {

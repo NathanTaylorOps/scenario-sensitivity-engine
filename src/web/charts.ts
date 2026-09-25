@@ -21,12 +21,12 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
   return node;
 }
 
-function formatCompactUsd(value: number): string {
+function formatCompactAud(value: number): string {
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}$${abs.toFixed(0)}`;
+  if (abs >= 1_000_000) return `${sign}A$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}A$${(abs / 1_000).toFixed(0)}K`;
+  return `${sign}A$${abs.toFixed(0)}`;
 }
 
 const LABEL_FONT = "12px system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -121,12 +121,12 @@ export function renderTornadoChart(container: HTMLElement, data: TornadoBarDatum
       y: y + barHeight / 2 + 4,
       class: "viz-value",
     });
-    value.textContent = formatCompactUsd(d.swing);
+    value.textContent = formatCompactAud(d.swing);
     svg.appendChild(value);
   });
 
   container.appendChild(svg);
-  container.appendChild(buildTableFallback(["Driver", "NPV swing"], data.map((d) => [d.label, formatCompactUsd(d.swing)])));
+  container.appendChild(buildTableFallback(["Driver", "NPV swing"], data.map((d) => [d.label, formatCompactAud(d.swing)])));
 }
 
 /** A collapsed, plain-HTML table holding the same numbers as the chart above it —
@@ -216,9 +216,9 @@ export function renderRangeChart(container: HTMLElement, datum: RangeDatum): voi
     return Math.min(Math.max(centerX, halfWidth), width - halfWidth);
   };
 
-  const p90Text = `P90 ${formatCompactUsd(datum.p90)}`;
-  const p10Text = `P10 ${formatCompactUsd(datum.p10)}`;
-  const p50Text = `P50 ${formatCompactUsd(datum.p50)}`;
+  const p90Text = `P90 ${formatCompactAud(datum.p90)}`;
+  const p10Text = `P10 ${formatCompactAud(datum.p10)}`;
+  const p50Text = `P50 ${formatCompactAud(datum.p50)}`;
 
   const p90Label = el("text", { x: clampedCenterX(xFor(datum.p90), p90Text), y: midY - 16, "text-anchor": "middle", class: "viz-value-muted" });
   p90Label.textContent = p90Text;
@@ -236,12 +236,12 @@ export function renderRangeChart(container: HTMLElement, datum: RangeDatum): voi
     buildTableFallback(
       ["Percentile", "NPV"],
       [
-        ["P90 (conservative)", formatCompactUsd(datum.p90)],
-        ["P50 (median)", formatCompactUsd(datum.p50)],
-        ["P10 (optimistic)", formatCompactUsd(datum.p10)],
+        ["P90 (conservative)", formatCompactAud(datum.p90)],
+        ["P50 (median)", formatCompactAud(datum.p50)],
+        ["P10 (optimistic)", formatCompactAud(datum.p10)],
       ],
     ),
   );
 }
 
-export { formatCompactUsd };
+export { formatCompactAud };

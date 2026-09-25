@@ -82,10 +82,12 @@ rather than silently resolved.
 
 ## Base-case vs. simulated
 
-`runBaseCase` runs every driver at its distribution's analytical mean with no
-randomness at all — a deterministic sanity check, not a decision input on its
-own. It exists so a reviewer (or a test) can confirm the simulation's mean
-converges toward it, not so a GM should read the base case as "the answer."
+`runBaseCase` runs every driver at its distribution's central value (the
+analytical mean, or the median for a lognormal driver, since a lognormal's
+mean sits above its typical value) with no randomness at all — a
+deterministic sanity check, not a decision input on its own. It exists so a
+reviewer (or a test) can confirm the simulation's central tendency converges
+toward it, not so a GM should read the base case as "the answer."
 
 ## Tax and depreciation (`src/engine/tax.ts`)
 
@@ -171,8 +173,10 @@ memory cost at high iteration counts.
 run always passes 0, since each driver's own distribution already carries its
 full independent uncertainty. `runPortfolioMonteCarlo` samples **one**
 macro-factor draw per trial and passes it identically to every decision being
-evaluated together, tilting each decision's demand-linked drivers by the same
-`± MACRO_DEMAND_SENSITIVITY` (currently 15%) factor in the same direction —
+evaluated together, tilting each decision's demand-linked drivers by that persona's own
+`MACRO_DEMAND_SENSITIVITY` constant (15% for the manufacturer persona, 25%
+for mine-site services — a stated, persona-specific choice, not a shared
+default) in the same direction —
 so a shared downturn now depresses the CNC line's incremental volume, the
 contract's revenue, and the second shift's demand ramp together, instead of
 independently.
@@ -309,11 +313,11 @@ screen everyone reads differently, `views.ts` derives three plain-data views
 from the same result — `operationalBrief` (one line: approved or not, and
 the ramp-up delay to plan around, nothing else), `financialDetailView`
 (assumptions, after-tax figures, top variance drivers), and `riskBriefView`
-(the P90 downside case and whether a residual/salvage value applies). This is
-the engine-level foundation for that split, not a UI: which screen a person
-actually sees is a Phase 3 (UI) concern, deliberately out of scope for a
-dependency-free engine module, but the split needed a tested home in the data
-layer before it could be a screen at all.
+(the P90 downside case and whether a residual/salvage value applies). The
+browser UI (`src/web/`) renders all three side by side rather than picking
+one for the visitor, since a real reviewer of this tool wants to see how the
+same result reads to each audience — but the split lives here, in a
+dependency-free engine module, so it stays testable independent of any UI.
 
 ## Debt financing: APV and the covenant check (`src/engine/financing.ts`)
 

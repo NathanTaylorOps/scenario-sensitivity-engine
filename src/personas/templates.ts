@@ -78,7 +78,7 @@ const capexTemplate: DecisionTemplate = {
     {
       id: "capex",
       label: "Capital expenditure",
-      unit: "USD",
+      unit: "AUD",
       category: "capex",
       defaultDistribution: { kind: "pert", min: 50_000, mode: 100_000, max: 200_000 },
       rationalePrompt: `${PLACEHOLDER_RATIONALE_PREFIX} where did this range come from — a quote, a dealer listing, a rough estimate?`,
@@ -94,7 +94,7 @@ const capexTemplate: DecisionTemplate = {
     {
       id: "marginPerUnit",
       label: "Net margin per unit",
-      unit: "USD/unit",
+      unit: "AUD/unit",
       category: "revenue",
       defaultDistribution: { kind: "pert", min: 5, mode: 10, max: 20 },
       rationalePrompt: `${PLACEHOLDER_RATIONALE_PREFIX} what's this margin based on — your own pricing/cost data?`,
@@ -102,7 +102,7 @@ const capexTemplate: DecisionTemplate = {
     {
       id: "annualFixedCost",
       label: "Annual added fixed cost (maintenance, service, etc.)",
-      unit: "USD/yr",
+      unit: "AUD/yr",
       category: "cost",
       defaultDistribution: { kind: "pert", min: 2000, mode: 5000, max: 10_000 },
       rationalePrompt: `${PLACEHOLDER_RATIONALE_PREFIX} service contracts, consumables, anything recurring this adds.`,

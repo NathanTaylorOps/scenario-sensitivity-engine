@@ -26,7 +26,7 @@ import {
   SCENARIO_PREFIX,
   type StoredScenario,
 } from "./storage.ts";
-import { renderTornadoChart, renderRangeChart, formatCompactUsd } from "./charts.ts";
+import { renderTornadoChart, renderRangeChart, formatCompactAud } from "./charts.ts";
 
 const ITERATIONS = 20000;
 const SEED = 42;
@@ -105,6 +105,7 @@ const editorCancelBtn = $<HTMLButtonElement>("editor-cancel-btn");
 const scenarioNameInput = $<HTMLInputElement>("scenario-name-input");
 const scenarioSaveBtn = $<HTMLButtonElement>("scenario-save-btn");
 const scenarioExportBtn = $<HTMLButtonElement>("scenario-export-btn");
+const scenarioImportBtn = $<HTMLButtonElement>("scenario-import-btn");
 const scenarioImportInput = $<HTMLInputElement>("scenario-import-input");
 const scenarioMessageEl = $<HTMLDivElement>("scenario-message");
 const scenarioSelect = $<HTMLSelectElement>("scenario-select");
@@ -126,10 +127,14 @@ function populatePersonaSelect(): void {
 
 function renderDecisionTabs(): void {
   decisionTabs.innerHTML = "";
+  decisionTabs.setAttribute("role", "tablist");
   for (const decision of state.persona.decisions) {
+    const isActive = decision.id === state.decision.id;
     const button = document.createElement("button");
-    button.className = "tab" + (decision.id === state.decision.id ? " tab-active" : "");
+    button.className = "tab" + (isActive ? " tab-active" : "");
     button.textContent = decision.label;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(isActive));
     button.addEventListener("click", () => {
       state.decision = decision;
       closeEditor();
@@ -192,7 +197,7 @@ function renderStatTiles(probabilityPositive: number, baseNpv: number, basePayba
     // scanning the tiles alone (without reading the badge text) still sees at a
     // glance whether this leans good, marginal, or critical.
     { label: "Probability NPV > 0", value: `${(probabilityPositive * 100).toFixed(0)}%`, tied: true },
-    { label: "Base-case NPV", value: formatCompactUsd(baseNpv), tied: false },
+    { label: "Base-case NPV", value: formatCompactAud(baseNpv), tied: false },
     { label: "Base-case payback", value: basePayback === null ? "Not recovered" : `${basePayback.toFixed(1)} yrs`, tied: false },
   ];
   for (const tile of tiles) {
@@ -291,12 +296,12 @@ function renderAll(): void {
   const risk = riskBriefView(decision, npvPct, rep.p90);
   const lenderSummary = document.createElement("p");
   lenderSummary.className = "audience-text";
-  lenderSummary.textContent = `Downside (P90) NPV: ${formatCompactUsd(risk.downsideNpv)}. ${risk.note}`;
+  lenderSummary.textContent = `Downside (P90) NPV: ${formatCompactAud(risk.downsideNpv)}. ${risk.note}`;
   audienceLenderEl.appendChild(lenderSummary);
   if (risk.downsideRepresentativeCashFlows) {
     const cashLine = document.createElement("p");
     cashLine.className = "audience-text audience-muted";
-    cashLine.textContent = `Representative P90 cash flow: ${risk.downsideRepresentativeCashFlows.map((v) => formatCompactUsd(v)).join(", ")}`;
+    cashLine.textContent = `Representative P90 cash flow: ${risk.downsideRepresentativeCashFlows.map((v) => formatCompactAud(v)).join(", ")}`;
     audienceLenderEl.appendChild(cashLine);
   }
 
@@ -362,11 +367,11 @@ function renderFinancingSection(decision: Decision): void {
     financingResult.appendChild(valueHeading);
     financingResult.appendChild(
       financingLine(
-        `Loan of ${formatCompactUsd(analysis.baseCasePrincipal)} at base-case capex. Unlevered NPV (P50): ${formatCompactUsd(unlevered.p50)}  +  PV of interest tax shield at the ${(annualInterestRate * 100).toFixed(1)}% loan rate (P50): ${formatCompactUsd(shield.p50)}  =  APV (P50): ${formatCompactUsd(apv.p50)}.`,
+        `Loan of ${formatCompactAud(analysis.baseCasePrincipal)} at base-case capex. Unlevered NPV (P50): ${formatCompactAud(unlevered.p50)}  +  PV of interest tax shield at the ${(annualInterestRate * 100).toFixed(1)}% loan rate (P50): ${formatCompactAud(shield.p50)}  =  APV (P50): ${formatCompactAud(apv.p50)}.`,
       ),
     );
     financingResult.appendChild(
-      financingLine(`APV — P90: ${formatCompactUsd(apv.p90)}  P50: ${formatCompactUsd(apv.p50)}  P10: ${formatCompactUsd(apv.p10)}.  Probability APV > 0: ${(analysis.probabilityApvPositive * 100).toFixed(0)}%.`, true),
+      financingLine(`APV — P90: ${formatCompactAud(apv.p90)}  P50: ${formatCompactAud(apv.p50)}  P10: ${formatCompactAud(apv.p10)}.  Probability APV > 0: ${(analysis.probabilityApvPositive * 100).toFixed(0)}%.`, true),
     );
     financingResult.appendChild(financingLine(analysis.note, true));
 
@@ -797,6 +802,11 @@ scenarioExportBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+// The file input itself stays hidden and out of the tab order (a hidden
+// <input type="file"> can't receive keyboard focus at all); a real, focusable
+// button triggers it, so importing works the same from a keyboard as a mouse.
+scenarioImportBtn.addEventListener("click", () => scenarioImportInput.click());
+
 scenarioImportInput.addEventListener("change", () => {
   const file = scenarioImportInput.files?.[0];
   if (!file) return;
@@ -841,7 +851,7 @@ function renderComparisonAndPortfolio(): void {
     const statusClass = verdictStatusClass(row.verdict.verdict);
     tr.innerHTML = `
       <td>${row.label}</td>
-      <td class="num">${formatCompactUsd(row.percentiles.p50)}</td>
+      <td class="num">${formatCompactAud(row.percentiles.p50)}</td>
       <td class="num">${(row.probabilityPositive * 100).toFixed(0)}%</td>
       <td><span class="pill ${statusClass}">${row.verdict.verdict}</span></td>
     `;
@@ -856,10 +866,10 @@ function computeAffordability(): void {
   affordabilityResult.innerHTML = "";
   const line1 = document.createElement("p");
   line1.className = "audience-text";
-  line1.textContent = `Probability the combined year-0 outlay fits within ${formatCompactUsd(availableCapital)}: ${(result.probabilityAffordable * 100).toFixed(0)}%.`;
+  line1.textContent = `Probability the combined year-0 outlay fits within ${formatCompactAud(availableCapital)}: ${(result.probabilityAffordable * 100).toFixed(0)}%.`;
   const line2 = document.createElement("p");
   line2.className = "audience-text audience-muted";
-  line2.textContent = `Combined NPV — P90: ${formatCompactUsd(result.combinedNpvPercentiles.p90)}  P50: ${formatCompactUsd(result.combinedNpvPercentiles.p50)}  P10: ${formatCompactUsd(result.combinedNpvPercentiles.p10)}`;
+  line2.textContent = `Combined NPV — P90: ${formatCompactAud(result.combinedNpvPercentiles.p90)}  P50: ${formatCompactAud(result.combinedNpvPercentiles.p50)}  P10: ${formatCompactAud(result.combinedNpvPercentiles.p10)}`;
   affordabilityResult.appendChild(line1);
   affordabilityResult.appendChild(line2);
 }
