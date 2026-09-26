@@ -93,6 +93,31 @@ async function main() {
     assert.ok(count >= 2, `expected at least 2 comparison rows, got ${count}`);
   });
 
+  console.log("Checking desktop layout (regression: content once used ~25% of the viewport, pinned to the left edge)...");
+  for (const [width, height] of [[1280, 900], [1440, 900]]) {
+    const layoutPage = await browser.newPage({ viewport: { width, height } });
+    await layoutPage.goto(`http://localhost:${port}/index.html`, { waitUntil: "networkidle" });
+    await layoutPage.waitForTimeout(200);
+    await check(`content is centered with roughly equal side margins at ${width}x${height}`, async () => {
+      const box = await layoutPage.evaluate(() => {
+        const main = document.querySelector(".app-main");
+        const r = main.getBoundingClientRect();
+        return { winWidth: window.innerWidth, left: r.left, right: window.innerWidth - r.right, contentWidth: r.width };
+      });
+      assert.ok(box.contentWidth / box.winWidth > 0.5, `content only fills ${((box.contentWidth / box.winWidth) * 100).toFixed(0)}% of the viewport width, not a sensible desktop reading width`);
+      const largerMargin = Math.max(box.left, box.right);
+      const smallerMargin = Math.max(Math.min(box.left, box.right), 1);
+      assert.ok(largerMargin / smallerMargin < 1.5, `side margins are lopsided (left ${box.left}px, right ${box.right}px) — content reads as pinned to one edge, not centered`);
+    });
+    await layoutPage.close();
+  }
+
+  console.log("Checking the favicon...");
+  await check("a favicon is served (not missing/default)", async () => {
+    const res = await page.request.get(`http://localhost:${port}/favicon.svg`);
+    assert.equal(res.status(), 200, "expected favicon.svg to be served with a 200");
+  });
+
   console.log("Checking persona/decision switching...");
   await page.selectOption("#persona-select", { index: 1 });
   await page.waitForTimeout(400);
