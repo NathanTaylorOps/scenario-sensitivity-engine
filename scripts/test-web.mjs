@@ -284,6 +284,121 @@ async function main() {
     assert.equal(msgVisible, true, "a bad import should surface a message, not fail silently");
   });
 
+  console.log("Checking the goal-seek panel...");
+  await page.selectOption("#persona-select", { index: 0 });
+  await page.waitForTimeout(300);
+  const goalSeekTabs = await page.$$("#decision-tabs .tab");
+  await goalSeekTabs[0].click();
+  await page.waitForTimeout(300);
+
+  await check("the goal-seek driver picker is populated with the decision's drivers", async () => {
+    const count = await page.$$eval("#goal-seek-driver-select option", (els) => els.length);
+    assert.ok(count > 1, `expected multiple driver options, got ${count}`);
+  });
+
+  await check("goal-seek shows a non-empty result for the default (top tornado) driver", async () => {
+    const text = (await page.textContent("#goal-seek-result"))?.trim() ?? "";
+    assert.ok(text.length > 0, "goal-seek result was empty");
+  });
+
+  const goalSeekOptions = await page.$$eval("#goal-seek-driver-select option", (els) => els.map((e) => ({ value: e.value, text: e.textContent ?? "" })));
+  if (goalSeekOptions.length > 1) {
+    const other = goalSeekOptions[1];
+    await page.selectOption("#goal-seek-driver-select", other.value);
+    await page.waitForTimeout(200);
+    await check("switching the goal-seek driver re-solves for the newly picked driver", async () => {
+      const text = (await page.textContent("#goal-seek-result"))?.trim() ?? "";
+      assert.ok(text.includes(other.text), `expected the result to mention "${other.text}", got: "${text}"`);
+    });
+  }
+
+  console.log("Checking the range-chart P90/P10 label-collision fix...");
+  await check("P90 and P10 labels stack instead of colliding on a narrow NPV spread", async () => {
+    const overlaps = await page.evaluate(async () => {
+      const { renderRangeChart } = await import("/js/web/charts.js");
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+      // p90/p50/p10 within a few dollars of each other: exactly the narrow-spread
+      // case where each label's own clamped position can land close enough to
+      // its neighbour that their half-widths overlap.
+      renderRangeChart(div, { label: "narrow spread", p90: 100_050, p50: 100_000, p10: 99_950 });
+      const svg = div.querySelector("svg");
+      const texts = Array.from(svg.querySelectorAll("text"));
+      const p90Label = texts.find((t) => (t.textContent ?? "").startsWith("P90"));
+      const p10Label = texts.find((t) => (t.textContent ?? "").startsWith("P10"));
+      const a = p90Label.getBBox();
+      const b = p10Label.getBBox();
+      div.remove();
+      const overlapsHorizontally = a.x < b.x + b.width && b.x < a.x + a.width;
+      const overlapsVertically = a.y < b.y + b.height && b.y < a.y + a.height;
+      return overlapsHorizontally && overlapsVertically;
+    });
+    assert.equal(overlaps, false, "P90 and P10 labels still collide on a narrow NPV spread");
+  });
+
+  console.log("Checking 'build your own decision from scratch'...");
+  await page.click("#new-decision-btn");
+  await page.waitForTimeout(200);
+  await check("the new-decision form opens", async () => {
+    assert.equal(await page.isVisible("#new-decision-form"), true);
+  });
+
+  await page.fill("#new-persona-name", "Smoke Test Co");
+  await page.fill("#new-decision-label", "Buy a smoke-test machine");
+  await page.fill("#new-decision-description", "A decision created by the automated smoke test.");
+  await page.fill("#new-decision-horizon", "4");
+  await page.click("#new-decision-create-btn");
+  await page.waitForTimeout(400);
+
+  await check("creating a decision from scratch adds its new persona to the picker", async () => {
+    const labels = await page.$$eval("#persona-select option", (els) => els.map((e) => e.textContent));
+    assert.ok(labels.includes("Smoke Test Co"), `expected "Smoke Test Co" among persona options, got: ${JSON.stringify(labels)}`);
+  });
+
+  await check("the new decision's editor opens automatically, pre-filled with placeholder-flagged drivers", async () => {
+    assert.equal(await page.isVisible("#editor-panel"), true, "the editor should auto-open right after creating a decision, not leave the person on an unfilled template");
+    const rationale = await page.$eval(".editor-rationale", (el) => el.value);
+    assert.ok(rationale.startsWith("REPLACE WITH YOUR OWN REASONING"), "a starter driver's rationale should be an obvious, unfinished placeholder");
+  });
+
+  const capexRowNew = await findRowByLabel("Capital expenditure");
+  const capexInputsNew = await capexRowNew.$$("input[type=number]");
+  await capexInputsNew[0].fill("40000");
+  await capexInputsNew[1].fill("60000");
+  await capexInputsNew[2].fill("90000");
+  await page.click("#editor-save-btn");
+  await page.waitForTimeout(300);
+
+  await check("saving a custom decision's own numbers persists them directly, with no driver-override banner", async () => {
+    assert.equal(await page.isVisible("#reset-assumptions-btn"), false, "a custom decision has no separate built-in default to 'reset to' — the edited numbers ARE the decision");
+    assert.equal(await page.isVisible("#delete-custom-btn"), true, "a custom decision should offer to delete itself instead");
+  });
+
+  const npvAfterCustomize = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  await check("the custom persona survives a page reload (localStorage)", async () => {
+    const labels = await page.$$eval("#persona-select option", (els) => els.map((e) => e.textContent));
+    assert.ok(labels.includes("Smoke Test Co"), "custom persona should still be in the picker after reload");
+  });
+
+  const optionsAfterReload = await page.$$eval("#persona-select option", (els) => els.map((e) => ({ value: e.value, text: e.textContent })));
+  const smokeOption = optionsAfterReload.find((o) => o.text === "Smoke Test Co");
+  await page.selectOption("#persona-select", smokeOption.value);
+  await page.waitForTimeout(400);
+  await check("the custom decision's own saved numbers (not the template defaults) survive the reload", async () => {
+    const npvAfterReload = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.equal(npvAfterReload, npvAfterCustomize);
+  });
+
+  await page.click("#delete-custom-btn");
+  await page.waitForTimeout(300);
+  await check("deleting a custom persona's only decision removes the whole persona from the picker", async () => {
+    const labels = await page.$$eval("#persona-select option", (els) => els.map((e) => e.textContent));
+    assert.ok(!labels.includes("Smoke Test Co"), "custom persona should be gone after deleting its only decision");
+  });
+
   await check("no console or page errors were raised during any of the above", () => {
     assert.deepEqual(pageErrors, [], `unexpected console/page errors: ${JSON.stringify(pageErrors)}`);
   });

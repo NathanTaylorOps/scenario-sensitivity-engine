@@ -3,7 +3,8 @@ import type { Decision, Driver, Persona } from "../engine/types.ts";
 import type { Distribution } from "../engine/distributions.ts";
 import { runMonteCarlo, runBaseCase } from "../engine/montecarlo.ts";
 import { percentiles, probabilityExceeds } from "../engine/percentiles.ts";
-import { tornadoAnalysis } from "../engine/tornado.ts";
+import { tornadoAnalysis, analysedDrivers } from "../engine/tornado.ts";
+import { solveForZeroNpv } from "../engine/goalseek.ts";
 import { decisionVerdict, type VerdictResult } from "../engine/verdict.ts";
 import { varianceContribution } from "../engine/variance.ts";
 import { representativeCashFlows } from "../engine/scenarios.ts";
@@ -12,6 +13,7 @@ import { operationalBrief, financialDetailView, riskBriefView } from "../engine/
 import { runFinancingAnalysis, LoanTermsError } from "../engine/financing.ts";
 import { validatePersona, PersonaValidationError } from "../engine/validation.ts";
 import { compareDriverToBaseline, compareDecisionToBaseline } from "../engine/guardrails.ts";
+import { listTemplates, starterDriversForTemplate, hydrateDecision } from "../personas/templates.ts";
 import {
   loadDriverOverride,
   saveDriverOverride,
@@ -22,9 +24,17 @@ import {
   exportScenarioToJson,
   importScenarioFromJson,
   generateId,
+  hasPrefix,
+  loadCustomPersonas,
+  upsertCustomPersona,
+  deleteCustomPersona,
   SCHEMA_VERSION,
   SCENARIO_PREFIX,
+  CUSTOM_PERSONA_PREFIX,
+  CUSTOM_DECISION_PREFIX,
   type StoredScenario,
+  type StoredCustomPersona,
+  type StoredCustomDecision,
 } from "./storage.ts";
 import { renderTornadoChart, renderRangeChart, formatCompactAud } from "./charts.ts";
 
@@ -35,6 +45,48 @@ const state: { persona: Persona; decision: Decision } = {
   persona: personas[0],
   decision: personas[0].decisions[0],
 };
+
+/**
+ * Turns every saved custom persona back into a runnable Persona by hydrating
+ * each of its stored decisions against its template's cashFlows formula. A
+ * decision whose templateId this build doesn't recognize (saved by a newer
+ * version of the app) is skipped rather than crashing the whole persona; a
+ * persona left with zero runnable decisions is skipped entirely.
+ */
+function customPersonasAsRuntime(): Persona[] {
+  return loadCustomPersonas()
+    .map((cp) => ({
+      id: cp.id,
+      name: cp.name,
+      tagline: cp.tagline,
+      decisions: cp.decisions.flatMap((d) => {
+        try {
+          return [hydrateDecision(d)];
+        } catch {
+          return [];
+        }
+      }),
+    }))
+    .filter((p) => p.decisions.length > 0);
+}
+
+/** The built-in personas plus every custom persona currently saved on this
+ * device — the full set the persona picker, scenario loader and portfolio
+ * views all draw from. Recomputed on demand (never cached) so a persona
+ * created or deleted this session is reflected immediately. */
+function allPersonas(): Persona[] {
+  return [...personas, ...customPersonasAsRuntime()];
+}
+
+/** Locates the stored custom persona/decision pair backing a given decision
+ * id, or undefined if that id isn't a custom decision this device knows. */
+function findOwningCustomPersona(decisionId: string): { persona: StoredCustomPersona; decision: StoredCustomDecision } | undefined {
+  for (const persona of loadCustomPersonas()) {
+    const decision = persona.decisions.find((d) => d.id === decisionId);
+    if (decision) return { persona, decision };
+  }
+  return undefined;
+}
 
 /**
  * Merges any saved driver override onto a clone of the built-in decision.
@@ -111,12 +163,27 @@ const scenarioMessageEl = $<HTMLDivElement>("scenario-message");
 const scenarioSelect = $<HTMLSelectElement>("scenario-select");
 const scenarioLoadBtn = $<HTMLButtonElement>("scenario-load-btn");
 const scenarioDeleteBtn = $<HTMLButtonElement>("scenario-delete-btn");
+const goalSeekDriverSelect = $<HTMLSelectElement>("goal-seek-driver-select");
+const goalSeekResultEl = $<HTMLDivElement>("goal-seek-result");
+const newDecisionBtn = $<HTMLButtonElement>("new-decision-btn");
+const deleteCustomBtn = $<HTMLButtonElement>("delete-custom-btn");
+const newDecisionForm = $<HTMLElement>("new-decision-form");
+const newDecisionTemplateSelect = $<HTMLSelectElement>("new-decision-template");
+const newDecisionPersonaModeSelect = $<HTMLSelectElement>("new-decision-persona-mode");
+const newPersonaNameField = $<HTMLDivElement>("new-persona-name-field");
+const newPersonaNameInput = $<HTMLInputElement>("new-persona-name");
+const newDecisionLabelInput = $<HTMLInputElement>("new-decision-label");
+const newDecisionDescriptionInput = $<HTMLTextAreaElement>("new-decision-description");
+const newDecisionHorizonInput = $<HTMLInputElement>("new-decision-horizon");
+const newDecisionErrorsEl = $<HTMLDivElement>("new-decision-errors");
+const newDecisionCreateBtn = $<HTMLButtonElement>("new-decision-create-btn");
+const newDecisionCancelBtn = $<HTMLButtonElement>("new-decision-cancel-btn");
 
 // ---- Persona / decision selection ----
 
 function populatePersonaSelect(): void {
   personaSelect.innerHTML = "";
-  for (const persona of personas) {
+  for (const persona of allPersonas()) {
     const option = document.createElement("option");
     option.value = persona.id;
     option.textContent = persona.name;
@@ -147,7 +214,7 @@ function renderDecisionTabs(): void {
 }
 
 personaSelect.addEventListener("change", () => {
-  const persona = personas.find((p) => p.id === personaSelect.value);
+  const persona = allPersonas().find((p) => p.id === personaSelect.value);
   if (!persona) return;
   state.persona = persona;
   state.decision = persona.decisions[0];
@@ -222,7 +289,9 @@ function renderAll(): void {
   const decision = applyOverride(baseDecision);
   decisionDescription.textContent = baseDecision.description;
   sectionBandDecisionLabel.textContent = baseDecision.label;
-  resetAssumptionsBtn.hidden = loadDriverOverride(baseDecision.id) === undefined;
+  const isCustomDecision = hasPrefix(baseDecision.id, CUSTOM_DECISION_PREFIX);
+  resetAssumptionsBtn.hidden = isCustomDecision || loadDriverOverride(baseDecision.id) === undefined;
+  deleteCustomBtn.hidden = !isCustomDecision;
 
   const base = runBaseCase(decision);
   const result = runMonteCarlo(decision, { iterations: ITERATIONS, seed: SEED, captureInputs: true, captureCashFlows: true });
@@ -239,6 +308,8 @@ function renderAll(): void {
     tornadoChartEl,
     tornado.map((row) => ({ label: row.label, swing: row.swing })),
   );
+
+  renderGoalSeekPanel(decision, tornado[0]?.driverId);
 
   const varianceRows = varianceContribution(decision, result.npvSamples, result.inputsSamples!);
   varianceListEl.innerHTML = "";
@@ -392,6 +463,74 @@ function renderFinancingSection(decision: Decision): void {
   termInput.oninput = debouncedCompute;
   compute();
 }
+
+// ---- Goal-seek ----
+//
+// Surfaces src/engine/goalseek.ts (previously CLI-only, via scripts/demo.ts)
+// in the browser UI: the question a GM asks more often than "what's the
+// NPV" — what does one driver need to hit, alone, for this decision to
+// break even. NPV = 0 is the only target the engine solves for today
+// (solveForZeroNpv); the driver to solve for is the only thing the person
+// picks. Remembers the last-picked driver per decision so switching tabs and
+// coming back doesn't reset the choice, but defaults a decision that hasn't
+// been visited yet to its top tornado driver — the one most worth asking about.
+
+const goalSeekSelectionByDecision = new Map<string, string>();
+let goalSeekDecision: Decision | undefined;
+
+/** Renders a driver's value in the same units it's entered in the editor —
+ * a bare fraction as a percentage, an AUD figure compacted like the rest of
+ * the app's currency output, anything else as a plain number with its unit. */
+function formatDriverValue(driver: Driver, value: number): string {
+  const unit = driver.unit.trim();
+  if (unit === "%") return `${(value * 100).toFixed(1)}%`;
+  if (unit.startsWith("%/")) return `${(value * 100).toFixed(1)}%${unit.slice(1)}`;
+  if (unit.startsWith("AUD")) return `${formatCompactAud(value)}${unit.slice(3)}`;
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unit}`;
+}
+
+function computeGoalSeek(): void {
+  const decision = goalSeekDecision;
+  if (!decision) return;
+  const driverId = goalSeekDriverSelect.value;
+  const driver = analysedDrivers(decision).find((d) => d.id === driverId);
+  goalSeekResultEl.innerHTML = "";
+  if (!driver) return;
+
+  goalSeekSelectionByDecision.set(decision.id, driverId);
+  const result = solveForZeroNpv(decision, driverId);
+  const p = document.createElement("p");
+  p.className = "audience-text";
+  if (result.feasible && result.solvedValue !== null) {
+    p.textContent = `"${driver.label}" would need to be ${formatDriverValue(driver, result.solvedValue)} (base case: ${formatDriverValue(driver, result.baseCaseValue)}) for NPV to reach breakeven, holding every other driver at its base case.`;
+  } else {
+    p.textContent = result.note;
+  }
+  goalSeekResultEl.appendChild(p);
+}
+
+/** Repopulates the driver picker for the decision now on screen and runs the
+ * solve. `defaultDriverId` (the top tornado driver) is used the first time a
+ * decision is seen; after that, the person's own last pick for that decision
+ * wins as long as it's still one of its drivers. */
+function renderGoalSeekPanel(decision: Decision, defaultDriverId: string | undefined): void {
+  goalSeekDecision = decision;
+  const drivers = analysedDrivers(decision);
+  const remembered = goalSeekSelectionByDecision.get(decision.id);
+  const selection = drivers.some((d) => d.id === remembered) ? remembered! : (defaultDriverId ?? drivers[0]?.id);
+
+  goalSeekDriverSelect.innerHTML = "";
+  for (const driver of drivers) {
+    const option = document.createElement("option");
+    option.value = driver.id;
+    option.textContent = driver.label;
+    goalSeekDriverSelect.appendChild(option);
+  }
+  if (selection) goalSeekDriverSelect.value = selection;
+  computeGoalSeek();
+}
+
+goalSeekDriverSelect.addEventListener("change", computeGoalSeek);
 
 // ---- Assumption editor ----
 //
@@ -640,7 +779,32 @@ editorSaveBtn.addEventListener("click", () => {
   const discountWarning = compareDriverToBaseline(editedDiscountRate, baseDecision.discountRate);
   if (discountWarning) warnings.unshift(discountWarning.message);
 
-  saveDriverOverride(baseDecision.id, { discountRate: editedDiscountRate, drivers: editedDrivers, warnings });
+  const owningCustom = findOwningCustomPersona(baseDecision.id);
+  if (owningCustom) {
+    // A custom decision has no separate "built-in default" to override — the
+    // edited driver data IS the decision, persisted directly onto its
+    // custom persona (upsertCustomPersona), not through the driver-override
+    // layer that only makes sense for a built-in decision with a fixed
+    // baseline to diff against and reset to.
+    const updatedDecision: StoredCustomDecision = { ...owningCustom.decision, discountRate: editedDiscountRate, drivers: editedDrivers };
+    const updatedPersona: StoredCustomPersona = {
+      ...owningCustom.persona,
+      decisions: owningCustom.persona.decisions.map((d) => (d.id === updatedDecision.id ? updatedDecision : d)),
+    };
+    upsertCustomPersona(updatedPersona);
+    // Refresh state from the freshly-hydrated persona so decision tabs and
+    // any later edit start from the just-saved numbers, not the stale
+    // in-memory object from before this save.
+    const refreshedPersona = allPersonas().find((p) => p.id === updatedPersona.id);
+    const refreshedDecision = refreshedPersona?.decisions.find((d) => d.id === updatedDecision.id);
+    if (refreshedPersona && refreshedDecision) {
+      state.persona = refreshedPersona;
+      state.decision = refreshedDecision;
+    }
+    renderDecisionTabs();
+  } else {
+    saveDriverOverride(baseDecision.id, { discountRate: editedDiscountRate, drivers: editedDrivers, warnings });
+  }
 
   editorErrorsEl.hidden = true;
   editorWarningsEl.hidden = warnings.length === 0;
@@ -668,6 +832,175 @@ resetAssumptionsBtn.addEventListener("click", () => {
   closeEditor();
   renderAll();
   renderComparisonAndPortfolio();
+});
+
+deleteCustomBtn.addEventListener("click", () => {
+  const owning = findOwningCustomPersona(state.decision.id);
+  if (!owning) return;
+  const remainingDecisions = owning.persona.decisions.filter((d) => d.id !== state.decision.id);
+  if (remainingDecisions.length === 0) {
+    // Deleting a custom persona's last decision leaves an empty, useless
+    // persona behind — remove the whole persona rather than leave a
+    // decision-less entry sitting in the picker.
+    deleteCustomPersona(owning.persona.id);
+  } else {
+    upsertCustomPersona({ ...owning.persona, decisions: remainingDecisions });
+  }
+  closeEditor();
+  state.persona = personas[0];
+  state.decision = personas[0].decisions[0];
+  resetFinancingDefaults(state.decision);
+  populatePersonaSelect();
+  renderDecisionTabs();
+  renderAll();
+  renderComparisonAndPortfolio();
+});
+
+// ---- Build your own decision from scratch ----
+//
+// Wires the engine's decision-template mechanism (src/personas/templates.ts)
+// and the browser-storage custom-persona/decision layer (src/web/storage.ts)
+// into the UI. Both already existed and were fully unit-tested, but neither
+// was ever reachable from a browser: the assumption editor above only lets
+// someone edit an EXISTING decision's numbers, never author a brand-new one
+// with its own persona name, its own drivers, and its own capital amounts
+// from a blank slate. This is that missing path.
+
+function populateNewDecisionForm(): void {
+  newDecisionTemplateSelect.innerHTML = "";
+  for (const template of listTemplates()) {
+    const opt = document.createElement("option");
+    opt.value = template.id;
+    opt.textContent = template.name;
+    newDecisionTemplateSelect.appendChild(opt);
+  }
+
+  newDecisionPersonaModeSelect.innerHTML = "";
+  const newOpt = document.createElement("option");
+  newOpt.value = "__new__";
+  newOpt.textContent = "A new persona";
+  newDecisionPersonaModeSelect.appendChild(newOpt);
+  for (const persona of loadCustomPersonas()) {
+    const opt = document.createElement("option");
+    opt.value = persona.id;
+    opt.textContent = `Add to "${persona.name}"`;
+    newDecisionPersonaModeSelect.appendChild(opt);
+  }
+  newDecisionPersonaModeSelect.value = "__new__";
+  newPersonaNameField.hidden = false;
+
+  newDecisionLabelInput.value = "";
+  newDecisionDescriptionInput.value = "";
+  newPersonaNameInput.value = "";
+  newDecisionHorizonInput.value = String(listTemplates()[0]?.defaultHorizonYears ?? 5);
+  newDecisionErrorsEl.hidden = true;
+}
+
+newDecisionPersonaModeSelect.addEventListener("change", () => {
+  newPersonaNameField.hidden = newDecisionPersonaModeSelect.value !== "__new__";
+});
+
+function showNewDecisionError(message: string): void {
+  newDecisionErrorsEl.hidden = false;
+  newDecisionErrorsEl.textContent = message;
+}
+
+newDecisionBtn.addEventListener("click", () => {
+  populateNewDecisionForm();
+  newDecisionForm.hidden = false;
+  newDecisionBtn.hidden = true;
+});
+
+newDecisionCancelBtn.addEventListener("click", () => {
+  newDecisionForm.hidden = true;
+  newDecisionBtn.hidden = false;
+});
+
+newDecisionCreateBtn.addEventListener("click", () => {
+  const templateId = newDecisionTemplateSelect.value;
+  const starters = starterDriversForTemplate(templateId);
+  const template = listTemplates().find((t) => t.id === templateId);
+  if (!starters || !template) {
+    showNewDecisionError("No cash-flow template is selected.");
+    return;
+  }
+
+  const label = newDecisionLabelInput.value.trim();
+  if (label.length === 0) {
+    showNewDecisionError("Give this decision a name.");
+    return;
+  }
+  const horizonYears = Number(newDecisionHorizonInput.value);
+  if (!Number.isInteger(horizonYears) || horizonYears < 1) {
+    showNewDecisionError("Horizon must be a whole number of years, 1 or more.");
+    return;
+  }
+
+  const personaMode = newDecisionPersonaModeSelect.value;
+  let targetPersona: StoredCustomPersona;
+  if (personaMode === "__new__") {
+    const personaName = newPersonaNameInput.value.trim();
+    if (personaName.length === 0) {
+      showNewDecisionError("Give the new persona a name.");
+      return;
+    }
+    targetPersona = { id: generateId(CUSTOM_PERSONA_PREFIX), name: personaName, tagline: "Custom persona", decisions: [] };
+  } else {
+    const existing = loadCustomPersonas().find((p) => p.id === personaMode);
+    if (!existing) {
+      showNewDecisionError("That persona no longer exists — pick another, or start a new one.");
+      return;
+    }
+    targetPersona = existing;
+  }
+
+  const newDecision: StoredCustomDecision = {
+    id: generateId(CUSTOM_DECISION_PREFIX),
+    templateId,
+    label,
+    description: newDecisionDescriptionInput.value.trim() || template.descriptionPrompt,
+    horizonYears,
+    discountRate: starters.discountRate,
+    drivers: starters.drivers,
+  };
+  const updatedPersona: StoredCustomPersona = { ...targetPersona, decisions: [...targetPersona.decisions, newDecision] };
+
+  try {
+    const hydrated = hydrateDecision(newDecision);
+    validatePersona({ id: "__new_decision_check__", name: "new decision check", tagline: "", decisions: [hydrated] });
+  } catch (err) {
+    showNewDecisionError(err instanceof PersonaValidationError ? err.message : String(err));
+    return;
+  }
+
+  upsertCustomPersona(updatedPersona);
+
+  const runtimePersona = allPersonas().find((p) => p.id === updatedPersona.id);
+  const runtimeDecision = runtimePersona?.decisions.find((d) => d.id === newDecision.id);
+  if (!runtimePersona || !runtimeDecision) {
+    showNewDecisionError("The decision was saved but couldn't be loaded back — try reloading the page.");
+    return;
+  }
+
+  state.persona = runtimePersona;
+  state.decision = runtimeDecision;
+  closeEditor();
+  resetFinancingDefaults(runtimeDecision);
+  populatePersonaSelect();
+  personaSelect.value = runtimePersona.id;
+  renderDecisionTabs();
+  renderAll();
+  renderComparisonAndPortfolio();
+
+  newDecisionForm.hidden = true;
+  newDecisionBtn.hidden = false;
+
+  // The new decision starts with the template's default numbers and
+  // obviously-a-placeholder rationale text — open the editor immediately so
+  // the person's very next step is replacing them with their own real
+  // drivers, assumptions and capital amounts, not stumbling on a "Buy a
+  // second delivery van" that quietly still runs on someone else's numbers.
+  openEditor();
 });
 
 // ---- Scenarios: save/load/export/import ----
@@ -714,12 +1047,18 @@ function buildCurrentScenario(name: string): StoredScenario {
   const decisionId = state.decision.id;
   const override = loadDriverOverride(decisionId);
   const hasFinancing = state.decision.drivers.some((d) => d.id === "capex");
+  // A scenario built on a custom persona embeds that persona in full, so
+  // exporting it to a file and importing it on another device is fully
+  // self-contained rather than silently pointing at a persona that device
+  // has never heard of.
+  const customPersona = hasPrefix(state.persona.id, CUSTOM_PERSONA_PREFIX) ? loadCustomPersonas().find((p) => p.id === state.persona.id) : undefined;
   return {
     schemaVersion: SCHEMA_VERSION,
     id: generateId(SCENARIO_PREFIX),
     name: name.trim().length > 0 ? name.trim() : "Untitled scenario",
     savedAt: new Date().toISOString(),
     personaId: state.persona.id,
+    customPersona,
     decisionId,
     inputs: {
       ...(hasFinancing
@@ -739,7 +1078,7 @@ function buildCurrentScenario(name: string): StoredScenario {
  * version's UI has nothing to load it into yet. That's a stated, honest
  * limitation rather than a silent failure. */
 function selectPersonaAndDecision(personaId: string, decisionId: string): boolean {
-  const persona = personas.find((p) => p.id === personaId);
+  const persona = allPersonas().find((p) => p.id === personaId);
   if (!persona) return false;
   const decision = persona.decisions.find((d) => d.id === decisionId);
   if (!decision) return false;
@@ -755,11 +1094,27 @@ function selectPersonaAndDecision(personaId: string, decisionId: string): boolea
 
 function applyScenario(scenario: StoredScenario, sourceLabel: string): void {
   if (!selectPersonaAndDecision(scenario.personaId, scenario.decisionId)) {
-    showScenarioMessage(
-      `${sourceLabel} points at "${scenario.personaId} / ${scenario.decisionId}", which this version of the app doesn't have (it may reference a custom persona built on another device — custom-persona loading isn't supported yet).`,
-      true,
-    );
-    return;
+    // Not found among what's already on this device — but a scenario built
+    // on another device embeds its custom persona in full (see
+    // StoredScenario.customPersona), so importing it can still work: install
+    // that persona locally (after re-validating it, never trusting an
+    // imported file's content as already-safe) and try again.
+    const embedded = scenario.customPersona;
+    if (embedded && embedded.id === scenario.personaId) {
+      try {
+        const decisions = embedded.decisions.map(hydrateDecision);
+        validatePersona({ id: "__import_check__", name: "import check", tagline: "", decisions });
+      } catch {
+        showScenarioMessage(`${sourceLabel} embeds a custom persona that fails this app's own validation, so it can't be installed.`, true);
+        return;
+      }
+      upsertCustomPersona(embedded);
+      populatePersonaSelect();
+    }
+    if (!selectPersonaAndDecision(scenario.personaId, scenario.decisionId)) {
+      showScenarioMessage(`${sourceLabel} points at "${scenario.personaId} / ${scenario.decisionId}", which this version of the app doesn't have.`, true);
+      return;
+    }
   }
 
   if (scenario.driverOverride) {

@@ -45,6 +45,46 @@
     </section>
 
     <section class="panel">
+      <h3 class="panel-title">Build your own decision</h3>
+      <p class="panel-subtitle">Not just editing the examples above — define a brand-new decision from a blank slate: your own persona name, your own drivers and assumptions, your own capital amounts, starting from a reviewed cash-flow template. Saved on this device only.</p>
+      <div class="panel-row panel-row-wrap">
+        <button id="new-decision-btn" class="btn btn-secondary" type="button">+ New decision</button>
+        <button id="delete-custom-btn" class="btn btn-secondary btn-reset" type="button" hidden>Delete this custom decision</button>
+      </div>
+      <section id="new-decision-form" class="panel editor-panel" hidden>
+        <div class="field">
+          <label class="field-label" for="new-decision-template">Cash-flow template</label>
+          <select id="new-decision-template" class="select"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="new-decision-persona-mode">Where to save it</label>
+          <select id="new-decision-persona-mode" class="select"></select>
+        </div>
+        <div class="field" id="new-persona-name-field">
+          <label class="field-label" for="new-persona-name">New persona name</label>
+          <input id="new-persona-name" class="input" type="text" placeholder="e.g. My Business" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="new-decision-label">Decision name</label>
+          <input id="new-decision-label" class="input" type="text" placeholder="e.g. Buy a second delivery van" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="new-decision-description">Description</label>
+          <textarea id="new-decision-description" class="input" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="new-decision-horizon">Horizon (years)</label>
+          <input id="new-decision-horizon" class="input" type="number" min="1" step="1" value="5" />
+        </div>
+        <div id="new-decision-errors" class="editor-messages editor-errors" hidden></div>
+        <div class="editor-actions">
+          <button id="new-decision-create-btn" class="btn btn-primary" type="button">Create — then fill in your own numbers</button>
+          <button id="new-decision-cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel">
       <h3 class="panel-title">Save &amp; load scenarios</h3>
       <p class="panel-subtitle">Saved on this device only. Export a scenario to a file to hand it to someone else — importing it reproduces the identical result, including any edited assumptions.</p>
       <div class="panel-row panel-row-wrap">
@@ -143,6 +183,16 @@
       <section class="panel">
         <h3 class="panel-title">Variance contribution (top drivers)</h3>
         <div id="variance-list" class="variance-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3 class="panel-title">Goal-seek: what would it take to break even?</h3>
+        <p class="panel-subtitle">Holds every other driver at its base case and solves for the value this one driver alone would need to reach for NPV to hit zero — the question a GM asks more often than "what's the NPV".</p>
+        <div class="field">
+          <label class="field-label" for="goal-seek-driver-select">Solve for</label>
+          <select id="goal-seek-driver-select" class="select"></select>
+        </div>
+        <div id="goal-seek-result" class="audience-content"></div>
       </section>
 
       <section class="panel">
