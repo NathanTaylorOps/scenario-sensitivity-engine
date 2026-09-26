@@ -20,7 +20,7 @@ import { validatePersona, PersonaValidationError } from "../src/engine/validatio
 import { amortizationSchedule, debtScheduleForHorizon, financeDecision, debtServiceCoverageRatio, runDscrAnalysis, runFinancingAnalysis, validateLoanTerms, LoanTermsError } from "../src/engine/financing.ts";
 import type { Decision, Persona } from "../src/engine/types.ts";
 import { manufacturerPersona } from "../src/personas/manufacturer.ts";
-import { personas, findPersona, mineSiteServicesPersona } from "../src/personas/index.ts";
+import { personas, findPersona, mineSiteServicesPersona, shortStayAccommodationPersona, softwareConsultancyPersona } from "../src/personas/index.ts";
 
 // --- RNG: determinism ---
 
@@ -1213,8 +1213,36 @@ test("runFinancingAnalysis: DSCR is evaluated for every loan year inside the hor
 
 test("mineSiteServicesPersona is registered and passes its own validation on import", () => {
   assert.ok(findPersona("mine-site-services"));
-  assert.equal(personas.length, 2);
+  assert.equal(personas.length, 4);
   assert.doesNotThrow(() => validatePersona(mineSiteServicesPersona));
+});
+
+test("shortStayAccommodationPersona and softwareConsultancyPersona are registered and pass their own validation on import", () => {
+  assert.ok(findPersona("short-stay-accommodation"));
+  assert.ok(findPersona("software-consultancy"));
+  assert.doesNotThrow(() => validatePersona(shortStayAccommodationPersona));
+  assert.doesNotThrow(() => validatePersona(softwareConsultancyPersona));
+});
+
+test("all decisions across the third and fourth personas run without throwing and produce finite NPV samples", () => {
+  for (const persona of [shortStayAccommodationPersona, softwareConsultancyPersona]) {
+    for (const decision of persona.decisions) {
+      const result = runMonteCarlo(decision, { iterations: 2000, seed: 111 });
+      assert.equal(result.npvSamples.length, 2000);
+      for (const v of result.npvSamples) {
+        assert.ok(Number.isFinite(v), `${persona.id}/${decision.id} produced a non-finite NPV sample`);
+      }
+    }
+  }
+});
+
+test("compareDecisions and portfolioAffordability work against the third and fourth personas with no engine changes", () => {
+  for (const persona of [shortStayAccommodationPersona, softwareConsultancyPersona]) {
+    const rows = compareDecisions(persona.decisions, { iterations: 1000, seed: 12 });
+    assert.equal(rows.length, 3);
+    const affordability = portfolioAffordability(persona.decisions, 500000, { iterations: 1000, seed: 12 });
+    assert.ok(Number.isFinite(affordability.probabilityAffordable));
+  }
 });
 
 test("all three mine-site-services decisions run without throwing and produce finite NPV samples (proves the engine is genuinely persona-agnostic)", () => {
@@ -1312,6 +1340,8 @@ test("contract decisions erode margin by (1 - margin) x inflation: inflation lan
   for (const [persona, inflationId] of [
     [manufacturerPersona, "inputCostInflationPct"],
     [mineSiteServicesPersona, "fuelCostInflationPct"],
+    [shortStayAccommodationPersona, "utilityCostInflationPct"],
+    [softwareConsultancyPersona, "contractorRateInflationPct"],
   ] as const) {
     const contract = persona.decisions[1];
     const inputs = baseCaseInputs(contract);
