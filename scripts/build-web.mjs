@@ -28,5 +28,6 @@ mkdirSync(distWeb, { recursive: true });
 copyFileSync(path.join(root, "web", "index.html"), path.join(distWeb, "index.html"));
 copyFileSync(path.join(root, "web", "styles.css"), path.join(distWeb, "styles.css"));
 copyFileSync(path.join(root, "web", "og-image.png"), path.join(distWeb, "og-image.png"));
+copyFileSync(path.join(root, "web", "favicon.svg"), path.join(distWeb, "favicon.svg"));
 
 console.log(`Built static UI at ${path.relative(root, distWeb)}/`);
