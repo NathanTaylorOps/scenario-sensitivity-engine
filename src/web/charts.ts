@@ -220,9 +220,21 @@ export function renderRangeChart(container: HTMLElement, datum: RangeDatum): voi
   const p10Text = `P10 ${formatCompactAud(datum.p10)}`;
   const p50Text = `P50 ${formatCompactAud(datum.p50)}`;
 
-  const p90Label = el("text", { x: clampedCenterX(xFor(datum.p90), p90Text), y: midY - 16, "text-anchor": "middle", class: "viz-value-muted" });
+  const p90CenterX = clampedCenterX(xFor(datum.p90), p90Text);
+  const p10CenterX = clampedCenterX(xFor(datum.p10), p10Text);
+
+  // On a narrow NPV spread the two clamped centers can land close enough that the
+  // labels' own half-widths overlap even though the endpoints themselves don't
+  // collide. When that happens, stack the labels at two different heights above
+  // the line instead of letting them run into each other on one row.
+  const halfWidthGap = textWidth(p90Text) / 2 + textWidth(p10Text) / 2 + 4;
+  const labelsWouldOverlap = Math.abs(p90CenterX - p10CenterX) < halfWidthGap;
+  const p90LabelY = midY - 16;
+  const p10LabelY = labelsWouldOverlap ? midY - 30 : midY - 16;
+
+  const p90Label = el("text", { x: p90CenterX, y: p90LabelY, "text-anchor": "middle", class: "viz-value-muted" });
   p90Label.textContent = p90Text;
-  const p10Label = el("text", { x: clampedCenterX(xFor(datum.p10), p10Text), y: midY - 16, "text-anchor": "middle", class: "viz-value-muted" });
+  const p10Label = el("text", { x: p10CenterX, y: p10LabelY, "text-anchor": "middle", class: "viz-value-muted" });
   p10Label.textContent = p10Text;
   const p50Label = el("text", { x: clampedCenterX(xFor(datum.p50), p50Text), y: midY + 26, "text-anchor": "middle", class: "viz-value" });
   p50Label.textContent = p50Text;
