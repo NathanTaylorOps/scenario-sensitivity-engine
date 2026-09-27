@@ -87,6 +87,12 @@ current to file** writes it to a portable `.json` file that reproduces the
 identical result when imported anywhere else. The seeded, deterministic
 Monte Carlo engine guarantees the numbers match exactly.
 
+Before publishing, this engine went in front of two operations and
+logistics managers based in Australia, who validated the use case and
+asked for flexible data import and export so a scenario could move
+between systems. The export/import round trip above is a direct answer
+to that request.
+
 A decision's underlying formula (its `cashFlows` function) isn't something
 the browser editor can author from scratch. What ships instead is
 `src/personas/templates.ts`: a small, fixed set of reviewed cash-flow
