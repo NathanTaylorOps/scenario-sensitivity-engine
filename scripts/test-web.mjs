@@ -18,6 +18,8 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 
 const root = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), "dist", "web");
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "application/javascript", ".png": "image/png" };
@@ -356,6 +358,9 @@ async function main() {
       div.remove();
       const overlapsHorizontally = a.x < b.x + b.width && b.x < a.x + a.width;
       const overlapsVertically = a.y < b.y + b.height && b.y < a.y + a.height;
+      console.log(`    [debug] p90 bbox: x=${a.x.toFixed(1)} y=${a.y.toFixed(1)} w=${a.width.toFixed(1)} h=${a.height.toFixed(1)}`);
+      console.log(`    [debug] p10 bbox: x=${b.x.toFixed(1)} y=${b.y.toFixed(1)} w=${b.width.toFixed(1)} h=${b.height.toFixed(1)}`);
+      console.log(`    [debug] overlapsHorizontally=${overlapsHorizontally} overlapsVertically=${overlapsVertically}`);
       return overlapsHorizontally && overlapsVertically;
     });
     assert.equal(overlaps, false, "P90 and P10 labels still collide on a narrow NPV spread");
@@ -422,6 +427,24 @@ async function main() {
   await check("deleting a custom persona's only decision removes the whole persona from the picker", async () => {
     const labels = await page.$$eval("#persona-select option", (els) => els.map((e) => e.textContent));
     assert.ok(!labels.includes("Smoke Test Co"), "custom persona should be gone after deleting its only decision");
+  });
+
+  console.log("Checking accessibility (axe-core, serious/critical only)...");
+  await page.selectOption("#persona-select", { index: 0 });
+  await page.waitForTimeout(300);
+  await check("no serious/critical accessibility violations on the main view", async () => {
+    await page.addScriptTag({ path: require.resolve("axe-core") });
+    const results = await page.evaluate(async () => await window.axe.run());
+    const seriousOrWorse = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    if (seriousOrWorse.length > 0) {
+      const detail = seriousOrWorse
+        .map((v) => `[${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} node(s))\n` +
+          v.nodes.map((n) => `    target: ${JSON.stringify(n.target)}\n    ${(n.failureSummary || "").replace(/\n/g, " | ")}`).join("\n"))
+        .join("\n");
+      throw new Error(`accessibility violations:\n${detail}`);
+    }
+    const minorOrModerate = results.violations.length - seriousOrWorse.length;
+    if (minorOrModerate > 0) console.log(`    (${minorOrModerate} minor/moderate violation(s) logged, not failing)`);
   });
 
   await check("no console or page errors were raised during any of the above", () => {

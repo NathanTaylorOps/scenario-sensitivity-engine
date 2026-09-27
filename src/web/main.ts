@@ -349,6 +349,7 @@ function renderAll(): void {
   audienceCfoEl.appendChild(cfoSummary);
   const assumptionList = document.createElement("ul");
   assumptionList.className = "assumption-list";
+  assumptionList.tabIndex = 0; // scrollable region (max-height + overflow-y: auto) must be keyboard-focusable
   for (const line of financial.assumptionLines) {
     const li = document.createElement("li");
     const heading = document.createElement("span");

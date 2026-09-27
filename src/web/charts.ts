@@ -230,7 +230,7 @@ export function renderRangeChart(container: HTMLElement, datum: RangeDatum): voi
   const halfWidthGap = textWidth(p90Text) / 2 + textWidth(p10Text) / 2 + 4;
   const labelsWouldOverlap = Math.abs(p90CenterX - p10CenterX) < halfWidthGap;
   const p90LabelY = midY - 16;
-  const p10LabelY = labelsWouldOverlap ? midY - 30 : midY - 16;
+  const p10LabelY = labelsWouldOverlap ? midY - 40 : midY - 16;
 
   const p90Label = el("text", { x: p90CenterX, y: p90LabelY, "text-anchor": "middle", class: "viz-value-muted" });
   p90Label.textContent = p90Text;

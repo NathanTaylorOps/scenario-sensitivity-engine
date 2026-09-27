@@ -20,6 +20,12 @@
   --baseline: #c3c2b7;
   --border: rgba(11, 11, 11, 0.10);
   --series-1: #2a78d6;
+  /* Text-safe solid fill for UI elements carrying white text (active tab, primary
+     button) — the raw --series-1 only clears 4.41:1 against white, short of the
+     4.5:1 AA minimum. Chart marks (bars/lines/dots) keep using --series-1 directly,
+     since those are not text and the categorical palette above is a validated
+     reference instance not to be adjusted casually. */
+  --series-1-solid: #2570c9;
   --series-1-track: #e1e0d9;
   --status-good: #0ca30c;
   --status-warning: #fab219;
@@ -301,9 +307,9 @@ body {
 }
 
 .tab-active {
-  background: var(--series-1);
+  background: var(--series-1-solid);
   color: #ffffff;
-  border-color: var(--series-1);
+  border-color: var(--series-1-solid);
 }
 
 /* Verdict badge â€” status color reserved for state, always paired with an icon + label, never color alone */
@@ -584,9 +590,9 @@ body {
 }
 
 .btn-primary {
-  background: var(--series-1);
+  background: var(--series-1-solid);
   color: #ffffff;
-  border: 1px solid var(--series-1);
+  border: 1px solid var(--series-1-solid);
 }
 
 .btn-secondary {
