@@ -1,4 +1,4 @@
-﻿# Contributing
+# Contributing
 
 This is a solo portfolio project, but it's built to be maintainable and extendable.
 
