@@ -1,4 +1,4 @@
-/* Scenario Sensitivity Engine — UI styles.
+/* Scenario Sensitivity Engine â€” UI styles.
    Palette and mark specs follow the dataviz skill's validated reference
    instance: fixed categorical order, status colors reserved for verdicts,
    text always in ink tokens (never series color), thin marks with rounded
@@ -21,7 +21,7 @@
   --border: rgba(11, 11, 11, 0.10);
   --series-1: #2a78d6;
   /* Text-safe solid fill for UI elements carrying white text (active tab, primary
-     button) � the raw --series-1 only clears 4.41:1 against white, short of the
+     button) — the raw --series-1 only clears 4.41:1 against white, short of the
      4.5:1 AA minimum. Chart marks (bars/lines/dots) keep using --series-1 directly,
      since those are not text and the categorical palette above is a validated
      reference instance not to be adjusted casually. */
@@ -158,7 +158,7 @@ body {
 
 /* Visual grouping between the persona-level "portfolio" content (comparison
    table, affordability) and the decision-level "deep dive" content (verdict,
-   charts, audience views, financing) — a light tint + heading band so the
+   charts, audience views, financing) â€” a light tint + heading band so the
    page reads as two clearly distinct zones, not one long undifferentiated
    scroll of panels. */
 .section-band {
@@ -233,7 +233,7 @@ body {
   gap: 20px;
   flex-wrap: wrap;
   /* flex-start (not flex-end) keeps every field's label lined up at the top
-     regardless of how tall its control ends up — a field next to one whose
+     regardless of how tall its control ends up â€” a field next to one whose
      control wraps to two lines (the Persona select next to the Decision
      tabs) would otherwise float with visible empty space above it. */
   align-items: flex-start;
@@ -312,7 +312,7 @@ body {
   border-color: var(--series-1-solid);
 }
 
-/* Verdict badge — status color reserved for state, always paired with an icon + label, never color alone */
+/* Verdict badge â€” status color reserved for state, always paired with an icon + label, never color alone */
 .verdict-badge {
   display: flex;
   align-items: center;
@@ -392,7 +392,7 @@ body {
 
 /* Ties the headline "Probability NPV > 0" tile's color to the verdict badge
    above it, so a reader scanning tiles alone still gets the same status
-   signal as the badge — not decorative color, the same status palette used
+   signal as the badge â€” not decorative color, the same status palette used
    everywhere else (icon + label still carry the verdict itself). */
 .stat-value-status-good {
   color: var(--status-good-text);
@@ -477,7 +477,7 @@ body {
   color: var(--text-secondary);
   font-size: 0.88rem;
   /* The CFO view is deliberately the most detailed of the three audience cards,
-     but a full assumption line per driver can run long — capped and scrollable
+     but a full assumption line per driver can run long â€” capped and scrollable
      so it doesn't force the Executor/Lender cards' whitespace to match it. */
   max-height: 260px;
   overflow-y: auto;
@@ -539,7 +539,7 @@ body {
   padding: 8px 10px;
   border-bottom: 1px solid var(--gridline);
   /* Scroll the table horizontally on a narrow viewport (.table-wrap already sets
-     overflow-x: auto) rather than squeezing columns until cell content wraps —
+     overflow-x: auto) rather than squeezing columns until cell content wraps â€”
      a wrapped pill's rounded background doesn't cover its second line, which
      reads as the verdict text being cut off ("Marginal" -> "Margin"). */
   white-space: nowrap;
@@ -771,7 +771,7 @@ body {
   stroke-width: 2;
 }
 
-/* Collapsed table view under each chart — accessibility fallback so the
+/* Collapsed table view under each chart â€” accessibility fallback so the
    underlying numbers are readable by a screen reader or on a printed page,
    not just visible as a bar's length. */
 .viz-table-fallback {
@@ -787,4 +787,84 @@ body {
 
 .viz-table-fallback table {
   margin-top: 8px;
+}
+
+
+/* Decision-first visual hierarchy: preserve the existing restrained palette. */
+.app-header {
+  padding-block: clamp(24px, 4vw, 42px);
+}
+.app-title {
+  font-size: clamp(1.65rem, 2.7vw, 2.15rem);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+.app-subtitle {
+  max-width: 65ch;
+  line-height: 1.55;
+}
+.section-band-decision > .section-band-title {
+  font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+  letter-spacing: -0.015em;
+}
+.section-band-decision > .panel:has(.verdict-badge) {
+  border-color: var(--border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.055);
+}
+.stat-tile {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--page-plane);
+}
+.stat-value {
+  font-size: clamp(1.3rem, 2vw, 1.65rem);
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.stat-label {
+  line-height: 1.45;
+}
+.panel:focus-within {
+  border-color: var(--baseline);
+}
+.btn:focus-visible,
+.tab:focus-visible,
+.select:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--series-1);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .section-band {
+    padding: 16px 12px 4px;
+  }
+  .section-band-decision {
+    padding: 4px 0 0;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .stat-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .stat-tile {
+    padding: 10px;
+  }
+  .stat-value {
+    font-size: 1.2rem;
+  }
+  .tabs {
+    gap: 6px;
+  }
+  .tab {
+    padding: 8px 12px;
+  }
+}
+@media (max-width: 360px) {
+  .stat-tiles {
+    grid-template-columns: 1fr;
+  }
 }
