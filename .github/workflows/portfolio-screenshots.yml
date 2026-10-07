@@ -1,0 +1,27 @@
+name: Portfolio screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - run: npx playwright install --with-deps chromium
+      - name: Capture verified desktop and mobile screens
+        run: node scripts/capture-screenshots.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scenario-engine-portfolio-screenshots
+          path: artifacts/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 30
