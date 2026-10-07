@@ -1,24 +1,48 @@
 # Scenario Sensitivity Engine
 
-[![CI](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+**Capital investment and operational decision support**
 
-A Monte Carlo scenario and sensitivity modeling tool for GM/COO-level
-business decisions: breakeven, NPV, payback, and tornado-ranked sensitivity,
-reported as ranges (P90/P50/P10) rather than false-precision point estimates.
+[Explore the live application](https://scenario-sensitivity-engine.onrender.com/) · [Modelling methodology](docs/METHODOLOGY.md) · [Assumption sources](docs/BENCHMARKS.md)
 
-**Live demo:** [scenario-sensitivity-engine.onrender.com](https://scenario-sensitivity-engine.onrender.com/)
+Does an investment still make sense when costs, demand, financing and delivery assumptions change?
 
-![Screenshot of the Scenario Sensitivity Engine UI, showing a verdict badge, NPV range and tornado charts for a mid-size manufacturer's second-CNC-line decision](docs/images/screenshot.png)
+Scenario Sensitivity Engine helps examine that question before committing capital. It combines after-tax cash-flow forecasts, Monte Carlo simulation, sensitivity analysis, funding constraints and stress testing to make the assumptions behind a decision visible and challengeable.
 
-> All company names, financial figures, and datasets in this project are
-> synthetic and illustrative only. No real business or financial data is
-> used or required.
+Rather than relying on a single forecast, it shows a range of potential outcomes, the drivers with the greatest influence, and conditions that could change the investment case.
 
-The engine is covered by a 155-test unit suite, and the UI by an automated
-26-check smoke test that drives a real browser. Both run in CI on every
-push. See `docs/METHODOLOGY.md` for how the engine works and
-`docs/BENCHMARKS.md` for where the input ranges come from.
+![Application screenshot showing an investment decision, NPV distribution and sensitivity analysis](docs/images/screenshot.png)
+
+> **Demonstration model:** All company names, figures and datasets are synthetic and illustrative. This is decision-support software, not an investment approval, financial advice or a substitute for project-specific due diligence.
+
+## The decision in practice
+
+Consider a manufacturer evaluating a second CNC machine. An attractive base-case forecast does not, by itself, establish that the business should proceed. Management also needs to understand whether demand supports the capacity, what commissioning delays could cost, whether debt service remains affordable and which assumptions would make the investment unattractive.
+
+The included manufacturer example can be used to examine:
+
+- **Investment economics:** after-tax net present value (NPV), a central estimate and downside/upside ranges.
+- **Decision sensitivity:** the input assumptions with the largest influence on NPV, displayed in a tornado chart.
+- **Financing and affordability:** amortising debt, debt-service coverage and capital-budget constraints.
+- **Execution uncertainty:** commissioning delay, ramp-up and dependent capacity decisions.
+- **Decision conditions:** stress scenarios, breakeven analysis and assumptions that warrant further validation.
+
+The model does not replace judgement with a pass/fail score. Its Proceed / Marginal / Reconsider labels are screening indicators based on documented probability thresholds, not automatic authorization to spend.
+
+## What it demonstrates
+
+The engine connects commercial evaluation to operational realities: capital availability, capacity, labour, timing, uncertainty and downside exposure. It supports comparisons between opportunities and helps explain *why* a result changes, rather than merely reporting another metric.
+
+The current application includes editable assumptions, example business profiles, saved and portable JSON scenarios, portfolio comparisons and multiple audience views. It runs in the browser without a backend. See the sections below for implementation details and constraints.
+
+## Verification and limitations
+
+Automated engine tests and browser checks run in [GitHub Actions](https://github.com/NathanTaylorOps/scenario-sensitivity-engine/actions/workflows/ci.yml). The methodology documents modelling conventions, including the P90/P50/P10 exceedance convention, simplified dependency assumptions, tax treatment and the limitations of screening verdicts.
+
+Results are only as credible as their inputs. Assumptions should be checked against current supplier quotations, financial statements, tax advice, financing terms and operating constraints before any real commitment.
+
+## Technical use and documentation
+
+The sections below cover local setup, scenario customization, testing, model features and source structure. The financial and statistical methodology is documented separately to keep this overview readable for operational and commercial audiences.
 
 ## Try it
 
@@ -245,14 +269,8 @@ static files with no server.
 
 ## About
 
-Built by **Nathan Taylor**, operations and construction leader with a GM/COO
-background, building out a portfolio of tools alongside a job search in
-South-East Queensland, Australia. This is the strategic, whole-business
-layer of that portfolio: qualifying flooring/tile bids to GCs in
-[BidGate](https://github.com/NathanTaylorOps/bidgate), catching job-cost
-and schedule risk on live builds in
-[job-cost-risk-dashboard](https://github.com/NathanTaylorOps/job-cost-risk-dashboard),
-and running field operations for a custom-home GC in
-[resource-scheduling-tracking-system](https://github.com/NathanTaylorOps/resource-scheduling-tracking-system)
-sit one level down, at the project and field level.
+Developed by **Nathan Taylor** as part of a portfolio of practical operations and decision systems spanning construction, manufacturing and asset-heavy businesses.
+
+Related projects: [BidGate](https://github.com/NathanTaylorOps/bidgate) · [Job-Cost Risk Dashboard](https://github.com/NathanTaylorOps/job-cost-risk-dashboard) · [Resource Scheduling & Tracking](https://github.com/NathanTaylorOps/resource-scheduling-tracking-system)
+
 [LinkedIn](https://www.linkedin.com/in/nathan-taylor02)
