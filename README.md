@@ -10,7 +10,9 @@ Scenario Sensitivity Engine helps examine that question before committing capita
 
 Rather than relying on a single forecast, it shows a range of potential outcomes, the drivers with the greatest influence, and conditions that could change the investment case.
 
-![Application screenshot showing an investment decision, NPV distribution and sensitivity analysis](docs/images/screenshot.png)
+![Scenario Sensitivity Engine: investment decision, NPV outcomes and sensitivity dashboard](docs/images/screenshot.png)
+
+*Actual application screenshots, using synthetic demonstration data.* [Full desktop dashboard](docs/images/screenshot-full.png) · [Mobile dashboard](docs/images/screenshot-mobile.png)
 
 > **Demonstration model:** All company names, figures and datasets are synthetic and illustrative. This is decision-support software, not an investment approval, financial advice or a substitute for project-specific due diligence.
 
