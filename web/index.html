@@ -51,8 +51,8 @@
           <select id="persona-select" class="select"></select>
         </div>
         <div class="field field-grow">
-          <label class="field-label">Investment decision</label>
-          <div id="decision-tabs" class="tabs"></div>
+          <p class="field-label" id="investment-decision-label">Investment decision</p>
+          <div id="decision-tabs" class="tabs" role="group" aria-labelledby="investment-decision-label"></div>
         </div>
       </div>
       <p id="decision-description" class="decision-description"></p>
@@ -71,7 +71,7 @@
         <h3 class="panel-title">Edit assumptions — <span id="editor-decision-label"></span></h3>
         <p class="panel-subtitle">Changes save to this device only — they don't touch the built-in defaults, and you can reset them anytime. An edit far outside the originally sourced range is flagged below, not blocked, since a real business reason to move outside it is entirely possible.</p>
         <div id="editor-body"></div>
-        <div id="editor-validation-errors" class="editor-messages editor-errors" hidden></div>
+        <div id="editor-validation-errors" class="editor-messages editor-errors" role="alert" hidden></div>
         <div id="editor-warnings" class="editor-messages editor-warnings-box" hidden></div>
         <div class="editor-actions">
           <button id="editor-save-btn" class="btn btn-primary" type="button">Save changes</button>
@@ -80,7 +80,7 @@
       </section>
 
       <section class="panel">
-        <div id="verdict-badge" class="verdict-badge"></div>
+        <div id="verdict-badge" class="verdict-badge" role="status" aria-live="polite" aria-atomic="true"></div>
         <div id="stat-tiles" class="stat-tiles"></div>
       </section>
 
@@ -216,7 +216,7 @@
           <label class="field-label" for="new-decision-horizon">Horizon (years)</label>
           <input id="new-decision-horizon" class="input" type="number" min="1" step="1" value="5" />
         </div>
-        <div id="new-decision-errors" class="editor-messages editor-errors" hidden></div>
+        <div id="new-decision-errors" class="editor-messages editor-errors" role="alert" hidden></div>
         <div class="editor-actions">
           <button id="new-decision-create-btn" class="btn btn-primary" type="button">Create — then fill in your own numbers</button>
           <button id="new-decision-cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
@@ -240,7 +240,7 @@
         <input id="scenario-import-input" type="file" accept="application/json" hidden />
 
       </div>
-      <div id="scenario-message" class="editor-messages" hidden></div>
+      <div id="scenario-message" class="editor-messages" role="status" aria-live="polite" hidden></div>
       <div class="field scenario-select-row">
         <label class="field-label" for="scenario-select">Saved scenarios (this device)</label>
         <select id="scenario-select" class="select"></select>
