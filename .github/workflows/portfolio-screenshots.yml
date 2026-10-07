@@ -7,9 +7,11 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".node-version"
@@ -25,3 +27,34 @@ jobs:
           path: artifacts/screenshots/*.png
           if-no-files-found: error
           retention-days: 30
+      - name: Prepare portfolio images
+        run: |
+          python -m pip install --quiet Pillow
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          output = Path("docs/images")
+          output.mkdir(parents=True, exist_ok=True)
+          desktop = Image.open("artifacts/screenshots/desktop-investment.png").convert("RGB")
+          # Show the selected decision, verdict, KPIs and first risk charts
+          # without compressing the entire multi-page dashboard into a thumbnail.
+          desktop.crop((0, 0, desktop.width, min(1580, desktop.height))).save(output / "screenshot.png", optimize=True)
+          desktop.save(output / "screenshot-full.png", optimize=True)
+          mobile = Image.open("artifacts/screenshots/mobile-investment.png").convert("RGB")
+          mobile.save(output / "screenshot-mobile.png", optimize=True)
+          PY
+      - name: Publish screenshot update branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "NathanTaylorOps"
+          git config user.email "330251779+NathanTaylorOps@users.noreply.github.com"
+          git checkout -B portfolio/verified-screenshots
+          git add docs/images/screenshot.png docs/images/screenshot-full.png docs/images/screenshot-mobile.png
+          if git diff --cached --quiet; then
+            echo "Screenshots already match repository images."
+            exit 0
+          fi
+          git commit -m "Refresh portfolio screenshots from verified browser captures"
+          git push --force-with-lease origin HEAD:refs/heads/portfolio/verified-screenshots
+          echo "Screenshots committed to portfolio/verified-screenshots; open a PR to review before merging."
