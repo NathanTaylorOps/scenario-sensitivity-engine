@@ -72,7 +72,7 @@
         <p class="panel-subtitle">Changes save to this device only — they don't touch the built-in defaults, and you can reset them anytime. An edit far outside the originally sourced range is flagged below, not blocked, since a real business reason to move outside it is entirely possible.</p>
         <div id="editor-body"></div>
         <div id="editor-validation-errors" class="editor-messages editor-errors" role="alert" hidden></div>
-        <div id="editor-warnings" class="editor-messages editor-warnings-box" hidden></div>
+        <div id="editor-warnings" class="editor-messages editor-warnings-box" role="status" aria-live="polite" hidden></div>
         <div class="editor-actions">
           <button id="editor-save-btn" class="btn btn-primary" type="button">Save changes</button>
           <button id="editor-cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
@@ -237,7 +237,7 @@
         <button id="scenario-save-btn" class="btn btn-primary" type="button">Save current as scenario</button>
         <button id="scenario-export-btn" class="btn btn-secondary" type="button">Export current to file</button>
         <button id="scenario-import-btn" class="btn btn-secondary" type="button">Import from file</button>
-        <input id="scenario-import-input" type="file" accept="application/json" hidden />
+        <input id="scenario-import-input" type="file" accept=".json,application/json" aria-label="Import scenario JSON file" hidden />
 
       </div>
       <div id="scenario-message" class="editor-messages" role="status" aria-live="polite" hidden></div>
