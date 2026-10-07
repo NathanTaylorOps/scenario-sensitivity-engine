@@ -272,6 +272,26 @@ async function main() {
     assert.ok(count >= 1, "expected at least one saved scenario option");
   });
 
+  // Verify that a saved scenario can be restored after a full page reload.
+  await page.reload({ waitUntil: "networkidle" });
+  await check("saved scenario persists after reload", async () => {
+    const options = await page.$eval("#scenario-select option", (els) => els.map((el) => el.textContent ?? ""));
+    assert.ok(options.some((name) => name.includes("Smoke test scenario")), "saved scenario missing after reload");
+  });
+  await page.click("#reset-assumptions-btn");
+  await page.waitForTimeout(200);
+  await check("reset removes the saved assumption override", async () => {
+    const resetNpv = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.notEqual(resetNpv, npvWithOverride);
+  });
+  await page.selectOption("#scenario-select", { label: "Smoke test scenario" });
+  await page.click("#scenario-load-btn");
+  await page.waitForTimeout(300);
+  await check("loading the saved scenario restores the previous NPV", async () => {
+    const restoredNpv = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
+    assert.equal(restoredNpv, npvWithOverride);
+  });
+
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#scenario-export-btn")]);
   const exportPath = "/tmp/sse-smoke-test-export.json";
   await download.saveAs(exportPath);
