@@ -275,7 +275,7 @@ async function main() {
   // Verify that a saved scenario can be restored after a full page reload.
   await page.reload({ waitUntil: "networkidle" });
   await check("saved scenario persists after reload", async () => {
-    const options = await page.$eval("#scenario-select option", (els) => els.map((el) => el.textContent ?? ""));
+    const options = await page.locator("#scenario-select option").allTextContents();
     assert.ok(options.some((name) => name.includes("Smoke test scenario")), "saved scenario missing after reload");
   });
   await page.click("#reset-assumptions-btn");
