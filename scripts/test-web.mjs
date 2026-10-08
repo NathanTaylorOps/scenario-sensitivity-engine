@@ -284,7 +284,7 @@ async function main() {
     const resetNpv = (await page.textContent("#stat-tiles .stat-tile:nth-child(2) .stat-value"))?.trim();
     assert.notEqual(resetNpv, npvWithOverride);
   });
-  await page.selectOption("#scenario-select", { label: "Smoke test scenario" });
+  await page.selectOption("#scenario-select", await page.$eval("#scenario-select", (select) => Array.from(select.options).find((option) => option.textContent?.includes("Smoke test scenario"))?.value ?? ""));
   await page.click("#scenario-load-btn");
   await page.waitForTimeout(300);
   await check("loading the saved scenario restores the previous NPV", async () => {
